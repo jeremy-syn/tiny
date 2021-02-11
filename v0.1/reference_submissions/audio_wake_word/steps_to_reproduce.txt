@@ -6,7 +6,10 @@ popd
 mv ${TF_DIR}/tensorflow/lite/micro/tools/make/gen/${LOCAL_ARCH}/prj/hello_world/mbed/* .
 mbed config root .                                                                     
 mbed deploy
-cp -r  ../../api . 
 cp -r ../../util . 
 rm -r tensorflow/lite/micro/examples/hello_world
 mbed compile --target NUCLEO_L4R5ZI --toolchain GCC_ARM -f
+
+# screen /dev/tty.usbmodem1103 115200
+# <in screen> infer%
+
