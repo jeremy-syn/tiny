@@ -1,0 +1,12 @@
+TF_DIR=</path/to/tensorflow/> # e.g. /Users/jeremy/pkgs/tensorflow
+LOCAL_ARCH=osx_arm64_default # or linux_x86_64w
+pushd $TF_DIR
+gmake -f tensorflow/lite/micro/tools/make/Makefile generate_hello_world_mbed_project
+popd
+mv ${TF_DIR}/tensorflow/lite/micro/tools/make/gen/${LOCAL_ARCH}/prj/hello_world/mbed/* .
+mbed config root .                                                                     
+mbed deploy
+cp -r  ../../api . 
+cp -r ../../util . 
+rm -r tensorflow/lite/micro/examples/hello_world
+mbed compile --target NUCLEO_L4R5ZI --toolchain GCC_ARM -f
