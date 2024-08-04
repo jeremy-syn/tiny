@@ -54,7 +54,7 @@ def convert_dataset(item):
   return audio, label
 
 
-def get_augment_wavs_func(data_config, background_data = []):
+def get_augment_wavs_func(data_config, background_data = [], return_recipe=False):
   """
   Returns a TF graph as a function that pads wavs to data_config['desired_samples'] and
   augments with time-shifting, amplitude variation, and background noise
@@ -94,7 +94,8 @@ def get_augment_wavs_func(data_config, background_data = []):
     # Shift the sample's start position, and pad any gaps with zeros.
     time_shift_padding_placeholder_ = tf.constant([[2,2]], tf.int32)
     time_shift_offset_placeholder_ = tf.constant([2],tf.int32)
-    
+
+
     padded_foreground = tf.pad(scaled_foreground, time_shift_padding_placeholder_, mode='CONSTANT')
     sliced_foreground = tf.slice(padded_foreground, time_shift_offset_placeholder_, [desired_samples])
 
@@ -114,14 +115,18 @@ def get_augment_wavs_func(data_config, background_data = []):
         lambda: tf.random.uniform([1],minval=0.5,maxval=background_volume_range_, dtype=tf.float32)[0],
         lambda: tf.constant(0.0, dtype=tf.float32)
       )
-
+      # recipe includes foreground_volume_placeholder_, background_volume_placeholder_, background_index, background_offset
+      
       background_data_placeholder_ = background_reshaped
       background_scaled = tf.multiply(background_data_placeholder_,
                            background_volume_placeholder_)
       sliced_foreground = tf.add(background_scaled, sliced_foreground)
       sliced_foreground = tf.clip_by_value(sliced_foreground, -1.0, 1.0)
-
-    return sliced_foreground
+    if return_recipe:
+      return sliced_foreground,foreground_volume_placeholder_, \
+        background_volume_placeholder_, background_index, background_offset
+    else:
+      return sliced_foreground
 
   return augment_wavs_func
 
@@ -236,6 +241,7 @@ def prepare_background_data(background_path, clip_len_samples, num_clips):
     wav_list += gfile.Glob(os.path.join(dir, '*.wav'))
     if len(wav_list) == 0:
       raise RuntimeError(f"Directory {dir} in background_path contains no wav files.")
+  random.seed(1)
   random.shuffle(wav_list)
 
   for wav_path in wav_list:
@@ -458,7 +464,7 @@ def get_all_datasets(Flags):
   print("Done building datasets")
   return ds_train, ds_test, ds_val
 
-def get_data(Flags, file_list, return_wavs=False):
+def get_data(Flags, file_list, return_wavs=False, return_recipe=False):
   
   label_count=Flags.num_classes
   background_frequency = Flags.background_frequency
@@ -538,9 +544,8 @@ def get_data(Flags, file_list, return_wavs=False):
     dset_unknown = dset_unknown.concatenate(dset_unknown.take(extra_unk_needed))
   
   # Combine target and unknown datasets, then convert to dicts of wav,int-label 
-  dset = dset_unknown.concatenate(dset_target)
-  dset = dset.map(get_waveform_and_label, num_parallel_calls=AUTOTUNE)
-  # dset = dset.map(convert_labels_str2int)
+  dset_filenames = dset_unknown.concatenate(dset_target)
+  dset = dset_filenames.map(get_waveform_and_label, num_parallel_calls=AUTOTUNE)
 
   # build a lookup table to map string names to integers.
   if Flags.num_classes == 3:
@@ -592,26 +597,46 @@ def get_data(Flags, file_list, return_wavs=False):
     ## end of if Flags.cal_subset
   
   # ds3 = ds1.map(lambda d: {"a":d["a"], "b":d["b"]+"!"})
-  aug_func = get_augment_wavs_func(Flags, background_data)
+  aug_func = get_augment_wavs_func(Flags, background_data, return_recipe=return_recipe)
   feature_extractor = get_lfbe_func(Flags)
 
-  # apply augmentation 
-  dset = dset.map(
-    lambda d: {"audio":aug_func(d["audio"]), "label":d["label"]}, 
-    num_parallel_calls=AUTOTUNE
-    )
-  # and extract spectral features
-  if not return_wavs: # return_wavs => skip feature extraction. mostly for debugging.
+  if return_recipe:
+    # the regular code has things in a dictionary here.
+    ds_none = tf.data.Dataset.from_tensor_slices(["None"]*num_silent)
+    dset_filenames = dset_filenames.concatenate(ds_none)
+    # apply augmentation
+    ds_aug_wavs_recipe = dset.map(
+      lambda d: aug_func(d["audio"]),
+      num_parallel_calls=AUTOTUNE
+      )
+    dset_labels = dset.map(lambda d: d["label"], num_parallel_calls=AUTOTUNE)
+    dset_wavs = ds_aug_wavs_recipe.map(
+      lambda wav, fgvol, bgvol, bgidx, bgoffs: wav,
+      num_parallel_calls=AUTOTUNE
+      )
+          
+    dset = tf.data.Dataset.zip(ds_aug_wavs_recipe, dset_filenames)
+  else:
+    # apply augmentation 
     dset = dset.map(
-      lambda d: {"audio":feature_extractor(d["audio"]), "label":d["label"]},
+      lambda d: {"audio":aug_func(d["audio"]), "label":d["label"]},
       num_parallel_calls=AUTOTUNE
       )
 
-  dset = dset.map(
-    lambda d: (d['audio'], tf.one_hot(d['label'], depth=Flags.num_classes, axis=-1)),
-    num_parallel_calls=AUTOTUNE
-  )
+    # and extract spectral features
+    if not return_wavs: # return_wavs => skip feature extraction. mostly for debugging.
+      dset = dset.map(
+        lambda d: {"audio":feature_extractor(d["audio"]), "label":d["label"]},
+        num_parallel_calls=AUTOTUNE
+        )  
 
+    # convert dictionary to tuple
+    dset = dset.map(
+      lambda d: (d['audio'], tf.one_hot(d['label'], depth=Flags.num_classes, axis=-1)),
+      num_parallel_calls=AUTOTUNE
+    )
+
+ 
   # The order of these next three steps is important: cache, then shuffle, then batch.
   # Cache at this point, so we don't have to repeat all the spectrogram calculations each epoch
   dset = dset.cache()
