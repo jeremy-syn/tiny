@@ -1,0 +1,281 @@
+"""
+SYNTIANT CONFIDENTIAL
+_____________________
+
+Copyright (c) 2019 Syntiant Corporation
+All Rights Reserved.
+
+NOTICE:  All information contained herein is, and remains the property of
+Syntiant Corporation and its suppliers, if any.  The intellectual and
+technical concepts contained herein are proprietary to Syntiant Corporation
+and its suppliers and may be covered by U.S. and Foreign Patents, patents in
+process, and are protected by trade secret or copyright law.  Dissemination
+of this information or reproduction of this material is strictly forbidden
+unless prior written permission is obtained from Syntiant Corporation.
+
+_____________________
+status: TDK-Shipped
+_____________________
+"""
+print("""
+
+ABOUT THIS FILE
+
+This script trains a simplistic speech recognition model for packaging
+to the Syntiant NDP10x architecture. It performs the following steps in order:
+
+1. Trains a neural network to recognize up, down, left, and right. A set of
+   words that are not these target words are treated as "open set" words
+   and classified to a fifth class activation.
+2. The neural network is quantized to 4 bit weights and 8 bit activations.
+   The quantization parameters are empirically determined by finding those
+   with the minimal loss.
+3. The posterior handler is empirically optimized against a set of
+   test set target class instances and an hour long radio program from the
+   United States. The optimizer finds the best performing false activate rate
+   subject to a false reject rate of 20 percent.
+4. Finally, a package is generated for loading on an NDP eval board via the SDK.
+
+""")
+
+import os
+# Only log tensorflow Errors, not Information or Warning messages
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+import numpy as np
+import json
+import itertools
+import argparse
+import time
+import tensorflow as tf
+
+import lib.audio.pipeline_continuous_wav
+from syntiant_packager.packages import SyntiantPackageFactory
+from syntiant_packager.data import PHParams
+
+from examples_lib.get_google_30 import get_google_30,\
+                                        get_filterbank_factory,\
+                                        model_labels, target_words,\
+                                        get_test_wav_paths
+from examples_lib.get_architecture import get_hello_world_architecture
+from pipeline.pipeline_posterior_parameter_performances\
+    import PipelinePosteriorParameterPerformances
+
+
+
+def _calculate_filterbank(self, wav_data):
+    """Construct tensorflow graph for filterbank extraction.
+
+    Args:
+         wav_data (tf.placeholder): The data passed in from the wav file.
+             It is expected to be 16k sample rate
+             [-1,1] wav data. The shape of the input is expected to be
+             (-1, (wincount -1)*winstep + winlen).
+
+    Return:
+        (tensor): Returns the filterbank tensor post quantization.
+    """
+    pcm_16 = tf.convert_to_tensor(value=wav_data)
+
+    # apply preemphasis
+    paddings = tf.constant([[0, 0], [1, 0]])
+    pcm_16 = tf.pad(tensor=pcm_16, paddings=paddings, mode='CONSTANT')
+    pcm_16 = pcm_16[:, 1:] - self._preephasis_coef * pcm_16[:, :-1]
+
+    # quantize wav data to 12 bits and dequantize it back
+    pcm_12_int = tf_quantize(pcm_16, 12)
+    pcm_12 = tf_dequantize(pcm_12_int, 12)
+
+    # compute fft
+    stfts = tf.signal.stft(
+        pcm_12,
+        frame_length=self._frame_length,
+        frame_step=self._frame_step,
+        fft_length=self._fft_length,
+        window_fn=functools.partial(
+            tf.signal.hamming_window, periodic=False),
+        pad_end=False,
+        name='STFT')
+
+    # compute magnitude spectrum [batch_size, num_frames, NFFT]
+    magspec = tf.abs(stfts)
+    num_spectrogram_bins = magspec.shape[-1]
+
+    # compute power spectrum [batch_size, num_frames, NFFT]
+    powspec = (1 / self._fft_length) * tf.square(magspec)
+    powspec_max = tf.reduce_max(input_tensor=powspec)
+    powspec = tf.clip_by_value(powspec, 1e-30, powspec_max)
+
+    def log10(x):
+        """Compute log base 10 on the tensorflow graph.
+
+        Args:
+            x (tensor): The inputs we want to compute the log based 10 for.
+
+        Return:
+            (tensor): The input taken to log 10.
+        """
+        numerator = tf.math.log(x)
+        denominator = tf.math.log(tf.constant(10, dtype=numerator.dtype))
+        return numerator / denominator
+
+    # Warp the linear-scale, magnitude spectrograms into the mel-scale.
+    num_spectrogram_bins = magspec.shape[-1]
+    linear_to_mel_weight_matrix = (
+        tf.signal.linear_to_mel_weight_matrix(
+            num_mel_bins=self._num_melbin_filters,
+            num_spectrogram_bins=num_spectrogram_bins,
+            sample_rate=self._sampling_frequency_hertz,
+            lower_edge_hertz=self._lower_edge_hertz,
+            upper_edge_hertz=self._upper_edge_hertz))
+    mel_spectrograms = tf.tensordot(powspec, linear_to_mel_weight_matrix,
+                                    1)
+    mel_spectrograms.set_shape(magspec.shape[:-1].concatenate(
+        linear_to_mel_weight_matrix.shape[-1:]))
+
+    log_mel_spec = 10 * log10(mel_spectrograms)
+    log_mel_spec = tf.expand_dims(log_mel_spec, -1, name="mel_spec")
+
+    log_mel_spec = (log_mel_spec + self._power_offset - 32 + 32.0) / 64.0
+    log_mel_spec = tf.clip_by_value(log_mel_spec, 0, 1)
+
+    batch_size = tf.shape(input=pcm_16)[0]
+
+    log_mel_spec = tf.reshape(log_mel_spec,
+                              [batch_size, -1, self._num_melbin_filters])
+
+    log_mel_spec_int = tf_quantize(
+        log_mel_spec, self._output_quantization_bit, signed=False)
+    log_mel_spec = tf_dequantize(
+        log_mel_spec_int, self._output_quantization_bit, signed=False)
+
+    return log_mel_spec
+
+
+print("""
+################################################################################
+Data and Architecture Preparation.
+1. Collect arguments.
+2. Collect augmented audio files for training.
+3. Load architecture.
+################################################################################
+""")
+
+
+# The dataset has 30 words, but we will be combining several words into 5 consistent classes
+num_classes = 5
+
+# This attempts to avoid an NFS volume (if present) that runs slower.
+default_source_directory = "/scratch/google_30_20200226/"
+if not os.path.isdir("/scratch"):
+    default_source_directory = "google_30_20200226"
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    '-s',
+    '--source_directory',
+    type=str,
+    default=default_source_directory,
+    help="""\
+    Source directory to produce dataset.
+    """)
+parser.add_argument(
+    '-a',
+    '--augmented_filterbanks_per_class',
+    type=int,
+    default=1,
+    help="""\
+    Number of augmentation for each class.
+    """)
+parser.add_argument(
+    '-m',
+    '--model_architecture',
+    type=str,
+    default="ndp100",
+    help="""\
+    Architecture used to train the model. Valid options are
+    ndp100, DenseNet, ConvNet, DeepConvNet, MobileNet,
+    EdgeNetCNN1, EdgeNetMobilenet, TestNet.
+    Details can be found in `get_architecture.py`.
+    """)
+parser.add_argument(
+    '-b',
+    '--batch_size',
+    type=int,
+    default=64,
+    help="""\
+    The batch size used for training.
+    """)
+parser.add_argument(
+    '-l',
+    '--load_path',
+    type=str,
+    default=None,
+    help="""\
+    Path to augmented data. If the data has already been generated, it will
+    be loaded from disc instead of re-generating.
+    """)
+parser.add_argument(
+    '-sa',
+    '--save_augmented',
+    type=str,
+    default='./aug_data',
+    help="""\
+    Path to where augmented data must be saved. If not provided, augmented data will NOT be saved.
+    """)
+args, unparsed = parser.parse_known_args()
+
+if args.model_architecture == "ndp100":
+    chip = "NDP10X_B0"
+else:
+    chip = "NDP12X_A0" # or 'NDP12X_B0'
+
+# Needed for continuous integration
+tf.keras.backend.clear_session()
+
+
+# Define hyperparameters
+hyperparameters = {"num_classes": num_classes,
+                   "input_type": "UNSIGNED8"}
+if args.model_architecture in ["ndp100", "DenseNet"]:
+    hyperparameters["input_shape"] = (1600,)
+else:
+    hyperparameters["input_shape"] = (1,40,40)
+
+
+# Get the model architecture and default hyperparameters. To see the possible
+# hyperparameter settings, view get_hello_world_architecture.
+model, hyperparameters = get_hello_world_architecture(
+    model_architecture=args.model_architecture,
+    hyperparameters=hyperparameters)
+
+time_steps_per_inference = 41 # How many columns are processed at once? (currently read only)
+filterbank_params = {
+    "filterbank_winlen": 0.032,
+    "filterbank_winstep": 0.024,
+    "sample_rate": 16000,
+    "filterbank_nfilt": 40,
+    "filterbank_size": 1640,
+    "filterbank_output_quantization": 8,
+    "filterbank_preemphasis_coef": 0.96875,
+    "filterbank_power_offset": 52
+}
+
+x_shape = (-1,) + hyperparameters["layers"][0]["shape"]
+
+(x_train, y_train), (x_test, y_test) = get_google_30(
+    args.source_directory,
+    augmented_filterbanks_per_class=1,
+    filterbank_params=filterbank_params)
+
+# convert class vectors to binary class matrices
+y_train = tf.keras.utils.to_categorical(y_train, num_classes)
+y_test = tf.keras.utils.to_categorical(y_test, num_classes)
+print("Done augmenting data, preparing to train...")
+
+if args.save_augmented is not None:
+    print('Saving augmented data...')
+    np.save(os.path.join(args.save_augmented, 'x_train.npy'), x_train)
+    np.save(os.path.join(args.save_augmented, 'x_test.npy'), x_test)
+    np.save(os.path.join(args.save_augmented, 'y_train.npy'), y_train)
+    np.save(os.path.join(args.save_augmented, 'y_test.npy'), y_test)
+    print('Done.')

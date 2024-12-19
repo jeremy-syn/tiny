@@ -1,0 +1,68 @@
+)o„³GA‡g)‡ëÄÍjµoÄÇç¾ƒÇÇÇ†mÆ1Ôkjhdbg: Just Starting
+jhdbg: before eebm_initÿm-timestamp-mode-energy
+m-lap-us-6146
+jhdbg: after timestamp init
+jhdbg: end of MicroInterp constructor
+jhdbg: beginning of mmr constructor
+jhdbg: Allocatetensors 0; size=13
+jhdbg: Allocatetensors before reg-prep[0]
+jhdbg: inside conv->prepare
+jhdbg: in conv->prepare  **0.a
+jhdbg: in conv->prepare  **0.b
+jhdbg: in GetOutput 0 (idx=0)
+jhdbg: in GetOutput 1
+jhdbg: in GetOutput 2
+jhdbg: GetTensorAtIndex 0 (tensors=0)
+jhdbg: GetTensorAtIndex 1b
+jhdbg: in CntxtHlpr:GetTensor 0
+jhdbg: in CntxtHlpr:GetTensor 1
+jhdbg: in AllocateTempTfLiteTensor 0
+jhdbg: in AllocateTempTfLiteTensor 1
+jhdbg: in AllocateTempTfLiteTensor 2
+
+++ MbedOS Fault Handler ++
+
+FaultType: HardFault
+
+Context:
+R0: 8018B2E
+R1: 8018B2E
+R2: 20001020
+R3: 1
+R4: 20001300
+R5: 8018B3E
+R6: 1
+R7: 0
+R8: 8018B1A
+R9: 8017062
+R10: 20001020
+R11: 20033280
+R12: 14
+SP   : 2009FEA8
+LR   : 800AC8B
+PC   : 800AA46
+xPSR : 810F0000
+PSP  : 0
+MSP  : 2009FE40
+CPUID: 410FC241
+HFSR : 40000000
+MMFSR: 0
+BFSR : 0
+UFSR : 100
+DFSR : 8
+AFSR : 0
+Mode : Thread
+Priv : Privileged
+Stack: MSP
+
+-- MbedOS Fault Handler --
+
+
+
+++ MbedOS Error Info ++
+Error Status: 0x80FF013D Code: 317 Module: 255
+Error Message: Fault exception
+Location: 0x800AA46
+Error Value: 0x200332E0
+For more info, visit: https://mbed.com/s/error?error=0x80FF013D&tgt=NUCLEO_L4R5ZI
+-- MbedOS Error Info --

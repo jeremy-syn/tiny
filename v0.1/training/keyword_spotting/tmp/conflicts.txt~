@@ -1,0 +1,24 @@
+CONFLICT (rename/rename):
+Rename "v0.1/training/audio_wake_words/trained_models/aww_ref_model/variables/variables.index"->"v0.1/training/keyword_spotting/trained_models/kws_ref_model/variables/variables.index" in branch "HEAD"
+rename "v0.1/training/audio_wake_words/trained_models/aww_ref_model/variables/variables.index"->"v0.1/training/keyword_spotting/trained_models/aww_ref_model/variables/variables.index" in "remotes/tiny_main/master"
+
+
+
+
+CONFLICT (rename/rename): Rename "v0.1/training/audio_wake_words/trained_models/aww_ref_model/variables/variables.data-00000-of-00001"->"v0.1/training/keyword_spotting/trained_models/kws_ref_model/variables/variables.data-00000-of-00001" in branch "HEAD" rename "v0.1/training/audio_wake_words/trained_models/aww_ref_model/variables/variables.data-00000-of-00001"->"v0.1/training/keyword_spotting/trained_models/aww_ref_model/variables/variables.data-00000-of-00001" in "remotes/tiny_main/master"
+CONFLICT (rename/rename): Rename "v0.1/training/audio_wake_words/trained_models/aww_ref_model/saved_model.pb"->"v0.1/training/keyword_spotting/trained_models/kws_ref_model/saved_model.pb" in branch "HEAD" rename "v0.1/training/audio_wake_words/trained_models/aww_ref_model/saved_model.pb"->"v0.1/training/keyword_spotting/trained_models/aww_ref_model/saved_model.pb" in "remotes/tiny_main/master"
+CONFLICT (rename/rename): Rename "v0.1/training/audio_wake_words/trained_models/aww_ref_model.tflite"->"v0.1/training/keyword_spotting/trained_models/kws_ref_model.tflite" in branch "HEAD" rename "v0.1/training/audio_wake_words/trained_models/aww_ref_model.tflite"->"v0.1/training/keyword_spotting/trained_models/aww_ref_model.tflite" in "remotes/tiny_main/master"
+CONFLICT (rename/rename): Rename "v0.1/training/audio_wake_words/aww_util.py"->"v0.1/training/keyword_spotting/kws_util.py" in branch "HEAD" rename "v0.1/training/audio_wake_words/aww_util.py"->"v0.1/training/keyword_spotting/aww_util.py" in "remotes/tiny_main/master"
+Auto-merging v0.1/training/keyword_spotting/get_dataset.py
+CONFLICT (content): Merge conflict in v0.1/training/keyword_spotting/get_dataset.py
+CONFLICT (add/add): Merge conflict in v0.1/training/keyword_spotting/eval_quantized_model.py
+Auto-merging v0.1/training/keyword_spotting/eval_quantized_model.py
+Auto-merging v0.1/training/keyword_spotting/.gitignore
+CONFLICT (add/add): Merge conflict in v0.1/reference_submissions/keyword_spotting/submitter_implemented.cpp
+Auto-merging v0.1/reference_submissions/keyword_spotting/submitter_implemented.cpp
+CONFLICT (add/add): Merge conflict in v0.1/reference_submissions/keyword_spotting/main.cpp
+Auto-merging v0.1/reference_submissions/keyword_spotting/main.cpp
+CONFLICT (add/add): Merge conflict in v0.1/reference_submissions/keyword_spotting/kws/kws_model_settings.cc
+Auto-merging v0.1/reference_submissions/keyword_spotting/kws/kws_model_settings.cc
+Auto-merging v0.1/api/internally_implemented.h
+Automatic merge failed; fix conflicts and then commit the result.
