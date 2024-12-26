@@ -1,0 +1,8 @@
+kws01:
+  name: keyword_spotting
+  model: kws01
+  truth_file: y_labels.csv
+  script:
+    - loop: 
+      - download
+      - infer 10 1
