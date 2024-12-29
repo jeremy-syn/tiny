@@ -52,6 +52,12 @@ PCD_HandleTypeDef hpcd_USB_OTG_FS;
 
 /* USER CODE BEGIN PV */
 
+uint32_t g_bytes_read = 0;
+uint32_t g_i2s_chunk_size = 1024;
+uint32_t g_i2s_buff_idx = 0;
+uint32_t g_i2s_status = HAL_OK;
+uint8_t *g_i2s_buffer = NULL;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -99,7 +105,23 @@ void print_vals_int16(int16_t *buffer, uint32_t num_vals)
 	printf("==== Done ====\r\n");
 }
 
-uint32_t receive_i2s(uint8_t *buff_ptr, uint32_t max_chars)
+
+void ErrorHandler(HAL_StatusTypeDef returned_status) {
+	printf("Error occured: %d\r\n", returned_status);
+}
+
+void HAL_SAI_RxCpltCallback(SAI_HandleTypeDef *hsai) {
+
+//    if (HAL_SAI_Receive_DMA(&hsai_BlockA1, (uint8_t*)audio_buffer, AUDIO_BUFFER_SIZE) != HAL_OK) {
+//        Error_Handler();
+//    }
+
+	printf("DMA Receive completed\r\n");
+	print_vals_int16((int16_t *)g_i2s_buffer, g_i2s_chunk_size / 2); // because 2 bytes per int16
+
+}
+
+uint32_t receive_i2s_blocking(uint8_t *buff_ptr, uint32_t max_chars)
 {
 	uint32_t i2s_status = HAL_OK;
 	uint32_t i2s_timeout_ms = 1000;
@@ -139,17 +161,16 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
   // set up variables for I2S receiving
-  uint8_t *i2s_buffer;
-  uint32_t i2s_buff_size = 35000;
+  uint32_t i2s_buff_size = 50000;
   uint32_t i2s_bytes_received = 0;
 
   // And for UART (over USB) connection to host
   uint8_t *uart_buff;
-  uint32_t uart_timeout_ms = 50;
+  uint32_t uart_timeout_ms = 200;
   uint32_t uart_status;
 
-  i2s_buffer = malloc(i2s_buff_size);
-  memset(i2s_buffer, 0x00, i2s_buff_size);
+  g_i2s_buffer = malloc(g_i2s_chunk_size);
+  memset(g_i2s_buffer, 0x00, g_i2s_chunk_size);
 
   uart_buff = malloc(64);
   memset(uart_buff, 0x00, 64);
@@ -188,12 +209,14 @@ int main(void)
   while (1)
   {
 	  uart_status = HAL_UART_Receive(&hlpuart1, uart_buff, 1, uart_timeout_ms);
-	  if(uart_status == HAL_OK) {
+	  if(uart_status == HAL_OK) {  // otherwise timeout => no key input
 		 if( uart_buff[0] == 'r') {
 			 printf("Listening for I2S data ... \r\n");
-			 i2s_bytes_received = receive_i2s(i2s_buffer, i2s_buff_size);
-			 printf("Received %lu bytes\r\n", i2s_bytes_received);
-			 print_vals_int16((int16_t *)i2s_buffer, i2s_bytes_received);
+			 g_i2s_status = HAL_SAI_Receive_DMA(&hsai_BlockA1, g_i2s_buffer, g_i2s_chunk_size);
+			 // you can also check hsai->State
+			 printf("DMA receive initiated. status=%lu\r\n", g_i2s_status);
+			 printf("    0=OK, 1=Error, 2=Busy, 3=Timeout\r\n");
+
 		 }
 		 else {
 			 printf("Unexpected character: %c\r\n", uart_buff[0]);
@@ -206,6 +229,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
   }
+
   /* USER CODE END 3 */
 }
 
