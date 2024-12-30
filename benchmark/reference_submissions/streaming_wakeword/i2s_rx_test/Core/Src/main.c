@@ -53,11 +53,18 @@ PCD_HandleTypeDef hpcd_USB_OTG_FS;
 
 /* USER CODE BEGIN PV */
 
-uint32_t g_bytes_read = 0;
-uint32_t g_i2s_chunk_size = 1024;
-uint32_t g_i2s_buff_idx = 0;
+uint32_t g_int16s_read = 0;
+uint32_t g_i2s_chunk_size_bytes = 1024;
 uint32_t g_i2s_status = HAL_OK;
-uint8_t *g_i2s_buffer = NULL;
+// two ping-pong byte buffers for DMA transfers from I2S port.
+uint8_t *g_i2s_buffer0 = NULL;
+uint8_t *g_i2s_buffer1 = NULL;
+uint8_t *g_i2s_current_buff = NULL; // will be either g_i2s_buffer0 or g_i2s_buffer1
+int g_i2s_buff_sel = 0;  // 0 for buffer0, 1 for buffer1
+int16_t *g_wav_record = NULL;  // buffer to store complete waveform
+uint32_t g_i2s_wav_len = 32000;
+
+
 
 /* USER CODE END PV */
 
@@ -114,12 +121,21 @@ void ErrorHandler(HAL_StatusTypeDef returned_status) {
 
 void HAL_SAI_RxCpltCallback(SAI_HandleTypeDef *hsai) {
 
-//    if (HAL_SAI_Receive_DMA(&hsai_BlockA1, (uint8_t*)audio_buffer, AUDIO_BUFFER_SIZE) != HAL_OK) {
-//        Error_Handler();
-//    }
+	if(g_int16s_read > g_i2s_wav_len-g_i2s_chunk_size_bytes){
+		printf("DMA Receive completed %lu int16s read out of %lu requestd\r\n", g_int16s_read, g_i2s_wav_len);
+		print_vals_int16(g_wav_record, g_int16s_read);
+		return;
+	}
 
-	printf("DMA Receive completed\r\n");
-	print_vals_int16((int16_t *)g_i2s_buffer, g_i2s_chunk_size / 2); // because 2 bytes per int16
+	// idle_buffer is the one that will be idle after we switch
+	uint8_t* idle_buffer = g_i2s_buff_sel ? g_i2s_buffer1 : g_i2s_buffer0;
+
+	g_i2s_buff_sel = g_i2s_buff_sel ^ 1; // toggle between 0/1 => g_i2s_buffer0/1
+    g_i2s_current_buff = g_i2s_buff_sel ? g_i2s_buffer1 : g_i2s_buffer0;
+	g_i2s_status = HAL_SAI_Receive_DMA(&hsai_BlockA1, g_i2s_current_buff, g_i2s_chunk_size_bytes);
+
+	memcpy((uint8_t*)(g_wav_record+g_int16s_read), idle_buffer, g_i2s_chunk_size_bytes);
+	g_int16s_read += g_i2s_chunk_size_bytes/2;
 
 }
 
@@ -163,16 +179,20 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
   // set up variables for I2S receiving
-  uint32_t i2s_buff_size = 50000;
-  uint32_t i2s_bytes_received = 0;
+
 
   // And for UART (over USB) connection to host
   uint8_t *uart_buff;
   uint32_t uart_timeout_ms = 200;
   uint32_t uart_status;
 
-  g_i2s_buffer = malloc(g_i2s_chunk_size);
-  memset(g_i2s_buffer, 0x00, g_i2s_chunk_size);
+  g_i2s_buffer0 = malloc(g_i2s_chunk_size_bytes);
+  memset(g_i2s_buffer0, 0x00, g_i2s_chunk_size_bytes);
+  g_i2s_buffer1 = malloc(g_i2s_chunk_size_bytes);
+  memset(g_i2s_buffer1, 0x00, g_i2s_chunk_size_bytes);
+  g_i2s_current_buff = g_i2s_buffer0;
+  g_wav_record = (int16_t *)malloc(g_i2s_wav_len * sizeof(int16_t));
+  memset(g_wav_record, 0, g_i2s_wav_len);
 
   uart_buff = malloc(64);
   memset(uart_buff, 0x00, 64);
@@ -215,7 +235,7 @@ int main(void)
 	  if(uart_status == HAL_OK) {  // otherwise timeout => no key input
 		 if( uart_buff[0] == 'r') {
 			 printf("Listening for I2S data ... \r\n");
-			 g_i2s_status = HAL_SAI_Receive_DMA(&hsai_BlockA1, g_i2s_buffer, g_i2s_chunk_size);
+			 g_i2s_status = HAL_SAI_Receive_DMA(&hsai_BlockA1, g_i2s_current_buff, g_i2s_chunk_size_bytes);
 			 // you can also check hsai->State
 			 printf("DMA receive initiated. status=%lu\r\n", g_i2s_status);
 			 printf("    0=OK, 1=Error, 2=Busy, 3=Timeout\r\n");
