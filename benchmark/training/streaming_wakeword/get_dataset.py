@@ -422,7 +422,8 @@ def get_data_config(general_flags, split, cal_subset=False, wave_frame_input=Fal
     ]
   elif split=='test':
     data_config['background_path'] = [] # test set is not augmented with background noise
-
+  
+  data_config['split'] = split
   # anything specified in kwargs overrides
   data_config.update(kwargs)
 
@@ -431,6 +432,7 @@ def get_data_config(general_flags, split, cal_subset=False, wave_frame_input=Fal
 
 def get_file_lists(data_dir):
   filenames = glob.glob(os.path.join(str(data_dir), '*', '*.wav'))
+  filenames = sorted(filenames) # needed for repeatable ordering so snapshot() works
   # the full speech-commands set lists which files are to be used
   # as test and validation data; train with everything else
   
@@ -457,6 +459,12 @@ def get_file_lists(data_dir):
   # validation and test files are listed explicitly in *_list.txt; train with everything else
   train_files = list(set(train_files) - set(test_files) - set(val_files))
 
+  # the order of files returned by glob is not repeatable
+  # sort here so that snapshot works
+  train_files = sorted(train_files)
+  test_files = sorted(test_files)
+  val_files = sorted(val_files)
+
   return train_files, test_files, val_files
 
 def get_all_datasets(Flags):
@@ -464,6 +472,17 @@ def get_all_datasets(Flags):
   flags_training = get_data_config(Flags, 'training')
   flags_validation = get_data_config(Flags, 'validation')
   flags_test = get_data_config(Flags, 'test')
+
+  # Set a fixed seed value
+  if Flags.seed is None:
+    seed = int(time.time() * 1000) % 2**32
+  else:
+    seed = Flags.seed
+  print(f"Using seed {seed}")
+
+  random.seed(seed) 
+  np.random.seed(seed) 
+  tf.random.set_seed(seed) 
 
   ## Build the data sets from files
   train_files, test_files, val_files = get_file_lists(Flags.speech_commands_path)
@@ -491,6 +510,7 @@ def get_data(Flags, file_list, return_wavs=False):
   files_target = [f for f in file_list if f.split(os.path.sep)[-2]=='marvin']
   # some of the bad_marvin wavs are ambiguous.  leave them out altogether
   files_unknown = list(set(file_list) - set(files_target))
+  files_unknown = sorted(files_unknown) # needed for repeatable ordering so snapshot() works
   # only keep the target files that are not listed in bad_marvin_files.txt
   files_target = [f for f in files_target if f.split('/')[-1] not in bad_marvin_files]
 
@@ -633,7 +653,8 @@ def get_data(Flags, file_list, return_wavs=False):
 
   # The order of these next three steps is important: cache, then shuffle, then batch.
   # Cache at this point, so we don't have to repeat all the spectrogram calculations each epoch
-  dset = dset.cache()
+  # dset = dset.cache()
+  dset = dset.snapshot(f"./saved_datasets/sww_{Flags.split}")
 
   if Flags.shuffle:
     # count the number of items in the training set.
@@ -682,6 +703,7 @@ def count_labels(ds, label_index=1):
 
 if __name__ == '__main__':
   Flags = util.parse_command("get_data")
+
   ds_train, ds_test, ds_val = get_all_datasets(Flags)
 
   for dat in ds_train.take(1):

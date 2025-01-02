@@ -10,7 +10,7 @@ if "TF_CPP_MIN_LOG_LEVEL" not in os.environ:
 
 from tensorflow import keras
 import tensorflow as tf
-import random
+import random, time
 
 import tensorflow_model_optimization as tfmot
 
@@ -33,13 +33,6 @@ Flags = util.parse_command("train")
 
 if not os.path.exists(Flags.plot_dir):
   os.makedirs(Flags.plot_dir)
-
-
-# Set a fixed seed value
-seed = 42
-random.seed(seed) 
-np.random.seed(seed) 
-tf.random.set_seed(seed) 
 
 print("Using speech commands data from {Flags.speech_commands_path} \nand background noise from {Flags.musan_path}")
 print(20*'-')

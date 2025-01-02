@@ -232,7 +232,14 @@ def add_dataset_args(parser):
         type=float,
         default=0.001,
         help='Initial LR',) 
-
+    parser.add_argument(
+        '--seed',
+        type=int,
+        default=None,
+        help="""\
+        Integer used to seed python, numpy, and tf RNGs.  If None (default), seed will be taken from the system clock.
+            If you want a reproducible run, set the seed to a specific value.
+        """)
 
 def add_training_args(parser):
     parser.add_argument(
