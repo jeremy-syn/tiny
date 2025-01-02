@@ -484,16 +484,22 @@ def get_all_datasets(Flags):
   np.random.seed(seed) 
   tf.random.set_seed(seed) 
 
-  ## Build the data sets from files
-  train_files, test_files, val_files = get_file_lists(Flags.speech_commands_path)
+  if Flags.dataset_load_path:
+    print(f"Loading datasets from {Flags.dataset_load_path}")
+    ds_train = tf.data.Dataset.load(Flags.dataset_load_path+"_training")
+    ds_val = tf.data.Dataset.load(Flags.dataset_load_path+"_validation")
+    ds_test = tf.data.Dataset.load(Flags.dataset_load_path+"_test")
+  else:
+    ## Build the data sets from files
+    train_files, test_files, val_files = get_file_lists(Flags.speech_commands_path)
 
-  print("About to get val data. ", end="")
-  ds_val = get_data(flags_validation, val_files)
-  print("About to get train data. ", end="")
-  ds_train = get_data(flags_training, train_files)
-  print("About to get test data. ", end="")
-  ds_test = get_data(flags_test, test_files)
-  print("Done building datasets")
+    print("About to get val data. ", end="")
+    ds_val = get_data(flags_validation, val_files)
+    print("About to get train data. ", end="")
+    ds_train = get_data(flags_training, train_files)
+    print("About to get test data. ", end="")
+    ds_test = get_data(flags_test, test_files)
+    print("Done building datasets")
   return ds_train, ds_test, ds_val
 
 def get_data(Flags, file_list, return_wavs=False):
@@ -653,8 +659,8 @@ def get_data(Flags, file_list, return_wavs=False):
 
   # The order of these next three steps is important: cache, then shuffle, then batch.
   # Cache at this point, so we don't have to repeat all the spectrogram calculations each epoch
-  # dset = dset.cache()
-  dset = dset.snapshot(f"./saved_datasets/sww_{Flags.split}")
+  dset = dset.cache()
+  # dset = dset.snapshot(f"./saved_datasets/sww_{Flags.split}")
 
   if Flags.shuffle:
     # count the number of items in the training set.
@@ -711,3 +717,9 @@ if __name__ == '__main__':
     print(f"Input tensor shape: {dat[0].shape}")
     print(f"Label shape: {dat[1].shape}")
   print(f"Number of each class in training set:\n {count_labels(ds_train, label_index=1)}")
+
+  if Flags.dataset_save_path:
+    print(f"Saving datasets to {Flags.dataset_save_path}")
+    ds_train.save(Flags.dataset_save_path+"_training")
+    ds_val.save(Flags.dataset_save_path+"_validation")
+    ds_test.save(Flags.dataset_save_path+"_test")

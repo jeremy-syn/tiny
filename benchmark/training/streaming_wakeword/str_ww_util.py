@@ -240,6 +240,24 @@ def add_dataset_args(parser):
         Integer used to seed python, numpy, and tf RNGs.  If None (default), seed will be taken from the system clock.
             If you want a reproducible run, set the seed to a specific value.
         """)
+    parser.add_argument(
+        '--dataset_save_path',
+        type=str,
+        default=None,
+        help="""\
+        If specified in get_dataset.py, the created datasets will be saved to 
+        dataset_save_path, appended with {_train|_validation|_test}.  Has no effect in train.py.
+        Re-use the saved dataset by specifying dataset_load_path in train.py.
+        """)
+    parser.add_argument(
+        '--dataset_load_path',
+        type=str,
+        default=None,
+        help="""\
+        If specified in train.py, the datasets will be loaded from 
+        dataset_load_path, appended with {_train|_validation|_test}.  
+        """)        
+
 
 def add_training_args(parser):
     parser.add_argument(
