@@ -25,6 +25,15 @@ samp_freq = Flags.sample_rate
 # For wav file 'long_wav.wav', the wakeword windows should be in 'long_wav_ww_windows.json'
 ww_windows_file = Flags.test_wav_path.split('.')[0] + '_ww_windows.json'
 
+
+flags_validation = get_dataset.get_data_config(Flags, 'validation')
+flags_validation.batch_size = 50
+
+## Build the data sets from files
+data_dir = Flags.speech_commands_path
+_, _, val_files = get_dataset.get_file_lists(data_dir)
+ds_val = get_dataset.get_data(flags_validation, val_files)
+
 if Flags.use_tflite_model:
     interpreter = tf.lite.Interpreter(model_path=Flags.tfl_file_name)
     interpreter.allocate_tensors()
@@ -35,6 +44,7 @@ if Flags.use_tflite_model:
     labels = []
     input_scale, input_zero_point = input_details[0]["quantization"]
     output_scale, output_zero_point = output_details[0]["quantization"]
+    print(f"Long wav will be tested with fixed threshold of {det_thresh}.")
 else:
     with tfmot.quantization.keras.quantize_scope(): # needed for the QAT wrappers
         model_std = keras.models.load_model(Flags.saved_model_path) # normal model for fixed-length inputs
@@ -48,6 +58,22 @@ else:
     Flags.variable_length=False
     # transfer weights from trained model into variable-length model
     model_varlen.set_weights(model_std.get_weights())
+
+    ## sweep detection threshold
+    th_list = list(np.arange(.01, 1.0, .01))
+    model_std.compile(optimizer=keras.optimizers.Adam(),  
+                  loss=keras.losses.CategoricalCrossentropy(from_logits=False),
+                  metrics=[
+                    keras.metrics.CategoricalAccuracy(),
+                    keras.metrics.Precision(class_id=0, thresholds=th_list),
+                    keras.metrics.Recall(class_id=0, thresholds=th_list),
+                    ],
+                 )
+
+    results_dict = model_std.evaluate(ds_val, return_dict=True)
+    idx_minprec = np.where(results_dict['precision'] >= 0.95)[0][0]
+    det_thresh = th_list[idx_minprec]
+    print(f"Long wav will be tested with threshold of {det_thresh} based on 0.95 precision on validation set")
 
 wav_sampling_freq, long_wav = wavfile.read(Flags.test_wav_path)
 assert wav_sampling_freq == samp_freq
@@ -92,30 +118,23 @@ for t_start, t_stop in ww_windows:
 ww_detected_spec_scale = (yy[:,0]>det_thresh).astype(int)
 ww_true_detects, ww_false_detects, ww_false_rejects = util.get_true_and_false_detections(ww_detected_spec_scale, ww_present, Flags)
 
-flags_validation = get_dataset.get_data_config(Flags, 'validation')
-flags_validation.batch_size = 50
-
-## Build the data sets from files
-data_dir = Flags.speech_commands_path
-_, _, val_files = get_dataset.get_file_lists(data_dir)
-ds_val = get_dataset.get_data(flags_validation, val_files)
-
 if not Flags.use_tflite_model:
     # val_loss, val_acc, val_prec, val_recl = model_std.evaluate(ds_val)
     results_dict = model_std.evaluate(ds_val, return_dict=True)
-    
     
 print(f"Results: false_detections={np.sum(ww_false_detects!=0)},",
       f"true_detections={np.sum(ww_true_detects!=0)},",
       f"false_rejections={np.sum(ww_false_rejects!=0)},", end=""
       )
 
-
-
 if not Flags.use_tflite_model:
+
     # print(f"val_loss={val_loss:5.4f}, val_acc={val_acc:5.4f}, val_precision={val_prec:5.4f}, val_recall={val_recl:5.4f}")
     for k in results_dict.keys():
-        print(f"{k}={results_dict[k]:5.4f}, ", end="")
+        if isinstance(results_dict[k], np.ndarray) and len(results_dict[k]) > 1:
+            print(f"{k}={results_dict[k][idx_minprec]:5.4f}, ", end="")
+        else:
+            print(f"{k}={results_dict[k]:5.4f}, ", end="")
     print("") # add newline
 else:
     print("") # We need a newline
