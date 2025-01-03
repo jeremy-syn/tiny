@@ -41,7 +41,10 @@ else:
 
     ## Build a model that can accept variable-length inputs to process the long waveform/spectrogram
     Flags.variable_length=True
+    print(f"About to build var-time model to load weights into")
+    print(f"Model config = {Flags.model_config}")
     model_varlen = models.get_model(args=Flags, use_qat=False) # model with variable-length input
+    print(f"Just did build var-time model to load weights into")
     Flags.variable_length=False
     # transfer weights from trained model into variable-length model
     model_varlen.set_weights(model_std.get_weights())
@@ -98,14 +101,21 @@ _, _, val_files = get_dataset.get_file_lists(data_dir)
 ds_val = get_dataset.get_data(flags_validation, val_files)
 
 if not Flags.use_tflite_model:
-    val_loss, val_acc, val_prec, val_recl = model_std.evaluate(ds_val)
-
+    # val_loss, val_acc, val_prec, val_recl = model_std.evaluate(ds_val)
+    results_dict = model_std.evaluate(ds_val, return_dict=True)
+    
+    
 print(f"Results: false_detections={np.sum(ww_false_detects!=0)},",
       f"true_detections={np.sum(ww_true_detects!=0)},",
       f"false_rejections={np.sum(ww_false_rejects!=0)},", end=""
       )
 
+
+
 if not Flags.use_tflite_model:
-    print(f"val_loss={val_loss:5.4f}, val_acc={val_acc:5.4f}, val_precision={val_prec:5.4f}, val_recall={val_recl:5.4f}")
+    # print(f"val_loss={val_loss:5.4f}, val_acc={val_acc:5.4f}, val_precision={val_prec:5.4f}, val_recall={val_recl:5.4f}")
+    for k in results_dict.keys():
+        print(f"{k}={results_dict[k]:5.4f}, ", end="")
+    print("") # add newline
 else:
     print("") # We need a newline

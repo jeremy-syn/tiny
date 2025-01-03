@@ -306,6 +306,13 @@ def add_training_args(parser):
         help="""\
         Directory where plots of accuracy vs Epochs are stored
         """)
+    parser.add_argument(
+        '--model_config',
+        type=str,
+        default=None,
+        help="""\
+        JSON file defining model configuration
+        """)
 
 def add_eval_args(parser):
     parser.add_argument(
@@ -331,7 +338,15 @@ def add_eval_args(parser):
         '--tfl_file_name',
         default=None,
         help='File name from which the TF Lite model is loaded.')
+    parser.add_argument(
+        '--model_config',
+        type=str,
+        default=None,
+        help="""\
+        JSON file defining model configuration
+        """)
 
+    
 
 def add_quantize_args(parser):
     parser.add_argument(
@@ -371,7 +386,12 @@ def parse_command(main_program):
                         f"larger than foreground_volume_max_test ({Flags.foreground_volume_max_test})")
     
 
-
+    if Flags.model_config is not None:
+        # we'll put the config dict itself in Flags.model_config since we shouldn't need the filename anymore
+        with open(Flags.model_config, 'r') as fpi:
+            model_config = json.load(fpi)
+        Flags.model_config = model_config
+    
     # add the path to the two datasets from a json file so that the notebooks can 
     # be run without modification, since it's hard to pass command line arguments
     # to a notebook and edits create false conflicts in git that we don't actually want to 
