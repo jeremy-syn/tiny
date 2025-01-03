@@ -118,7 +118,7 @@ def conv_block(inputs,
     # DepthwiseConv1D
     if padding=='causal':
       print("Adding padding before DWConv2D")
-      net = tf.pad(net, [[0, 0], [kernel_size-1, 0], [0, 0], [0, 0]], 'constant')
+      net = tf.keras.layers.ZeroPadding2D(padding=((kernel_size-1,0), (0,0)), data_format="channels_last")(net)
       dw_pad = 'valid'
     elif padding == 'valid':
       dw_pad = 'valid'
@@ -179,20 +179,34 @@ def get_model(args, use_qat=False):
   # If flags does not have the option, default to False
   variable_length = ('variable_length' in args and args.variable_length)
 
-  ds_filters          = [128, 128, 128, 32]
-  ds_repeat           = [1, 1, 1, 1]
-  ds_residual         = [0, 0, 0, 0]
-  ds_kernel_size      = [3, 5, 10, 15]
-  ds_stride           = [1, 1, 1, 1]
-  ds_dilation         = [1, 1, 1, 1]
-  # ds_padding          = ['valid', 'valid', 'valid', 'valid']
-  ds_padding          = ['causal', 'causal', 'causal', 'causal']
-  ds_filter_separable = [1, 1, 1, 1]
-  ds_scale            = 1
-  ds_max_pool         = 0
-  dropout = 0.2
-  activation = "relu"
+  if hasattr(args, 'model_config') and args.model_config is not None:
+    ds_filters          = args.model_config['ds_filters']
+    ds_repeat           = args.model_config['ds_repeat']          
+    ds_residual         = args.model_config['ds_residual']        
+    ds_kernel_size      = args.model_config['ds_kernel_size']     
+    ds_stride           = args.model_config['ds_stride']          
+    ds_dilation         = args.model_config['ds_dilation']        
+    ds_padding          = args.model_config['ds_padding']         
+    ds_filter_separable = args.model_config['ds_filter_separable']
+    ds_scale            = args.model_config['ds_scale']
+    ds_max_pool         = args.model_config['ds_max_pool']
+    dropout             = args.model_config['dropout']
+    activation          = args.model_config['activation']
+  else:
+    ds_filters          = [128, 128, 128, 32]
+    ds_repeat           = [1, 1, 1, 1]
+    ds_residual         = [0, 0, 0, 0]
+    ds_kernel_size      = [3, 5, 10, 15]
+    ds_stride           = [1, 1, 1, 1]
+    ds_dilation         = [1, 1, 1, 1]
+    ds_padding          = ['valid', 'valid', 'valid', 'valid']
+    ds_filter_separable = [1, 1, 1, 1]
+    ds_scale            = 1
+    ds_max_pool         = 0
+    dropout = 0.2
+    activation = "relu"
 
+  
   # check that all the lists are the same length. this was really only needed when taking different configs
   num_blocks = len(ds_filters)
   for param_list, param_name in [(ds_filters         , "ds_filters"),
@@ -277,6 +291,7 @@ def get_model(args, use_qat=False):
     metrics=[keras.metrics.CategoricalAccuracy(),
             keras.metrics.Precision(class_id=0, thresholds=0.95, name='precision'),
             keras.metrics.Recall(class_id=0,  thresholds=0.95, name='recall'),
+            keras.metrics.RecallAtPrecision(0.9, class_id=0, name='recall_at_pr90')
             ],
   )
 

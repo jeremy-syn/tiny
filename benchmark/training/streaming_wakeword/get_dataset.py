@@ -258,6 +258,7 @@ def prepare_background_data(background_path, clip_len_samples, num_clips):
     if len(background_data) >= num_clips:
       break
 
+  random.shuffle(background_data)
   background_data = background_data[:num_clips]
 
   return background_data
@@ -422,7 +423,7 @@ def get_data_config(general_flags, split, cal_subset=False, wave_frame_input=Fal
     ]
   elif split=='test':
     data_config['background_path'] = [] # test set is not augmented with background noise
-  
+    
   data_config['split'] = split
   # anything specified in kwargs overrides
   data_config.update(kwargs)
@@ -674,6 +675,7 @@ def get_data(Flags, file_list, return_wavs=False):
   
   dset = dset.batch(Flags.batch_size)
 
+  
   return dset
 
 def is_batched(ds):

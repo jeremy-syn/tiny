@@ -79,7 +79,7 @@ post_train_lr = model.optimizer.lr.numpy()
 print(f"After initial float training, LR = {post_train_lr}")
 
 if qat_epochs > 0:
-  model_qat = models.apply_qat(model, Flags, init_lr=Flags.learning_rate) #   init_lr=post_train_lr)
+  model_qat = models.apply_qat(model, Flags, init_lr=Flags.learning_rate/10) #   init_lr=post_train_lr)
   train_hist_qat = model_qat.fit(ds_train, validation_data=ds_val, 
                                  epochs=qat_epochs, callbacks=callbacks)
   util.plot_training(Flags.plot_dir,train_hist_qat, suffix='_qat')
@@ -103,6 +103,8 @@ elif qat_epochs > 0: # if we trained with QAT, append the QAT logs to the main t
     
 util.plot_training(Flags.plot_dir,train_hist, suffix='_combined')
 np.savez(os.path.join(Flags.plot_dir, "train_hist.npz"), train_hist)
+
+# model.summary()
 
 if Flags.run_test_set:
   print(f"On test set")
