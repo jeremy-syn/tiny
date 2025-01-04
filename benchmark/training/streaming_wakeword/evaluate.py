@@ -32,6 +32,10 @@ flags_validation.batch_size = 50
 ## Build the data sets from files
 data_dir = Flags.speech_commands_path
 _, _, val_files = get_dataset.get_file_lists(data_dir)
+if Flags.dataset_load_path:
+    print(f"Loading validation dataset from {Flags.dataset_load_path+'_validation'}")
+    ds_val = tf.data.Dataset.load(Flags.dataset_load_path+"_validation")
+
 ds_val = get_dataset.get_data(flags_validation, val_files)
 
 if Flags.use_tflite_model:
@@ -73,7 +77,7 @@ else:
     results_dict = model_std.evaluate(ds_val, return_dict=True)
     idx_minprec = np.where(results_dict['precision'] >= 0.95)[0][0]
     det_thresh = th_list[idx_minprec]
-    print(f"Long wav will be tested with threshold of {det_thresh} based on 0.95 precision on validation set")
+    print(f"Detection threshold = {det_thresh}, based on 0.95 precision on validation set")
 
 wav_sampling_freq, long_wav = wavfile.read(Flags.test_wav_path)
 assert wav_sampling_freq == samp_freq
