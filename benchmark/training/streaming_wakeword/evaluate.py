@@ -35,8 +35,8 @@ _, _, val_files = get_dataset.get_file_lists(data_dir)
 if Flags.dataset_load_path:
     print(f"Loading validation dataset from {Flags.dataset_load_path+'_validation'}")
     ds_val = tf.data.Dataset.load(Flags.dataset_load_path+"_validation")
-
-ds_val = get_dataset.get_data(flags_validation, val_files)
+else:
+    ds_val = get_dataset.get_data(flags_validation, val_files)
 
 if Flags.use_tflite_model:
     interpreter = tf.lite.Interpreter(model_path=Flags.tfl_file_name)
@@ -123,6 +123,15 @@ ww_detected_spec_scale = (yy[:,0]>det_thresh).astype(int)
 ww_true_detects, ww_false_detects, ww_false_rejects = util.get_true_and_false_detections(ww_detected_spec_scale, ww_present, Flags)
 
 if not Flags.use_tflite_model:
+    model_std.compile(optimizer=keras.optimizers.Adam(),  
+                  loss=keras.losses.CategoricalCrossentropy(from_logits=False),
+                  metrics=[
+                    keras.metrics.CategoricalAccuracy(),
+                    keras.metrics.Precision(class_id=0),
+                    keras.metrics.Recall(class_id=0),
+                    ],
+                 )
+  
     # val_loss, val_acc, val_prec, val_recl = model_std.evaluate(ds_val)
     results_dict = model_std.evaluate(ds_val, return_dict=True)
     
@@ -135,10 +144,10 @@ if not Flags.use_tflite_model:
 
     # print(f"val_loss={val_loss:5.4f}, val_acc={val_acc:5.4f}, val_precision={val_prec:5.4f}, val_recall={val_recl:5.4f}")
     for k in results_dict.keys():
-        if isinstance(results_dict[k], np.ndarray) and len(results_dict[k]) > 1:
-            print(f"{k}={results_dict[k][idx_minprec]:5.4f}, ", end="")
-        else:
-            print(f"{k}={results_dict[k]:5.4f}, ", end="")
+        # if isinstance(results_dict[k], np.ndarray) and len(results_dict[k]) > 1:
+        #     print(f"{k}={results_dict[k][idx_minprec]:5.4f}, ", end="")
+        # else:
+        print(f"{k}={results_dict[k]:5.4f}, ", end="")
     print("") # add newline
 else:
     print("") # We need a newline
