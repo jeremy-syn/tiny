@@ -1,16 +1,24 @@
-// On the L4 board,
-SAI1_FS_A = PE4  = CN9.16
-SAI1_SCK_A = PE5 = CN9.18
-SAI1_SD_A = PE6  = CN9.20
+### I2S Connections 
 
-// On the runner board, 
-SAI1_FS_B on PF9 (CN3.2, CN6.2). 
-SAI1_SCK_B on PF8 (CN3.3, CN6.3)
-SAI1_SD_B on PF6 (CN3.1, CN6.1)
-SAI1_MCLK_B on PF7 (CN3.4, CN6.4)
+On the L4 DUT board (NUCLEO L4R5ZI)
 
+* `SAI1_FS_A` = PE4  = CN9.16
+* `SAI1_SCK_A` = PE5 = CN9.18
+* `SAI1_SD_A` = PE6  = CN9.20
 
+On the runner board (STM32H573I-DK)
 
+* `SAI1_FS_B` on PF9 (CN3.2, CN6.2). 
+* `SAI1_SCK_B` on PF8 (CN3.3, CN6.3)
+* `SAI1_SD_B` on PF6 (CN3.1, CN6.1)
+* `SAI1_MCLK_B` on PF7 (CN3.4, CN6.4)
+
+DUT board pinout taken from STM document "um2179-stm32-nucleo144-boards-mb1312-stmicroelectronics.pdf".
+<img src="figures/ref_board_l4_pinout.png" width="600">
+
+### Notes from the Driver Source
+This information is in teh header of `stm32l4xx_hal_sai.c`.
+```
     The SAI HAL driver can be used as follows:
 
     (#) Declare a SAI_HandleTypeDef handle structure (eg. SAI_HandleTypeDef hsai). <<== hsai_BlockA1
@@ -190,4 +198,4 @@ SAI1_MCLK_B on PF7 (CN3.4, CN6.4)
     When the compilation define USE_HAL_SAI_REGISTER_CALLBACKS is set to 0 or
     not defined, the callback registering feature is not available
     and weak callbacks are used.
-
+```
