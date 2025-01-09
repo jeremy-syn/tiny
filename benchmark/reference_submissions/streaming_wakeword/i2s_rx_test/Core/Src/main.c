@@ -31,7 +31,7 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
-#define LOG_BUFFER_SIZE 1024
+#define LOG_BUFFER_SIZE 4096
 typedef struct {
     char buffer[LOG_BUFFER_SIZE];
     size_t current_pos;
@@ -69,7 +69,8 @@ uint8_t *g_i2s_buffer1 = NULL;
 uint8_t *g_i2s_current_buff = NULL; // will be either g_i2s_buffer0 or g_i2s_buffer1
 int g_i2s_buff_sel = 0;  // 0 for buffer0, 1 for buffer1
 int16_t *g_wav_record = NULL;  // buffer to store complete waveform
-uint32_t g_i2s_wav_len = 8*1024;
+uint32_t g_i2s_wav_len = 1*512; // length in (16b) samples
+int g_i2s_rx_in_progess = 0;
 LogBuffer g_log = { .buffer = {0}, .current_pos = 0 };
 
 
@@ -177,24 +178,55 @@ void ErrorHandler(HAL_StatusTypeDef returned_status) {
 
 void HAL_SAI_RxCpltCallback(SAI_HandleTypeDef *hsai) {
 
-	if(g_int16s_read + g_i2s_chunk_size_bytes/2 > g_i2s_wav_len){
-		printf("DMA Receive completed %lu int16s read out of %lu requested\r\n", g_int16s_read, g_i2s_wav_len);
-		print_vals_int16(g_wav_record, g_int16s_read);
-		g_int16s_read = 0;
-		return;
-	}
+	int reading_complete=0;
+
+	g_int16s_read += g_i2s_chunk_size_bytes/2;
 
 	// idle_buffer is the one that will be idle after we switch
 	uint8_t* idle_buffer = g_i2s_buff_sel ? g_i2s_buffer1 : g_i2s_buffer0;
-
 	g_i2s_buff_sel = g_i2s_buff_sel ^ 1; // toggle between 0/1 => g_i2s_buffer0/1
     g_i2s_current_buff = g_i2s_buff_sel ? g_i2s_buffer1 : g_i2s_buffer0;
-	g_i2s_status = HAL_SAI_Receive_DMA(hsai, g_i2s_current_buff, g_i2s_chunk_size_bytes);
+
+	if(g_int16s_read + g_i2s_chunk_size_bytes/2 <= g_i2s_wav_len){
+		// there is space left for a full chunk
+		g_i2s_status = HAL_SAI_Receive_DMA(hsai, g_i2s_current_buff, g_i2s_chunk_size_bytes);
+	}
+	else {
+		// if there is only space for a partial read
+		// i.e. (g_int16s_read < g_i2s_wav_len < g_int16s_read + g_i2s_chunk_size_bytes/2)
+		// don't start the read, b/c you'll overflow the allocated buffer
+		// that means you'll read less than requested, but avoid a seg-fault.
+		reading_complete = 1;
+	}
+
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
-    log_printf(&g_log, "cb:%lu,b%d,rs=%d,ps=%d.\r\n", g_int16s_read, g_i2s_buff_sel, g_i2s_status, hsai->State);
+
     // for 1024 bytes, this memcpy takes about 50 us.
-	memcpy((uint8_t*)(g_wav_record+g_int16s_read), idle_buffer, g_i2s_chunk_size_bytes);
-	g_int16s_read += g_i2s_chunk_size_bytes/2;
+    //
+	memcpy((uint8_t*)(g_wav_record+g_int16s_read-g_i2s_chunk_size_bytes/2), idle_buffer, g_i2s_chunk_size_bytes);
+
+	// This block just for debug.
+	//	uint8_t *p_bytes=NULL;
+	int16_t *p_int16s=(int16_t*)(g_wav_record+g_int16s_read - g_i2s_chunk_size_bytes/2);
+	//    p_bytes = (uint8_t*)(g_wav_record+g_int16s_read);
+    log_printf(&g_log, "cb:%lu,b%d,rs=%d,st=%d.\r\n", g_int16s_read, g_i2s_buff_sel, g_i2s_status, hsai->State);
+    //  log_printf(&g_log, "\t[%8X] [0x%02X, 0x%02X, 0x%02X, 0x%02X]\r\n",p_bytes, p_bytes[0], p_bytes[1], p_bytes[2], p_bytes[3]);
+    log_printf(&g_log, "WV:\t[%8X] <= [%d, %d, %d, %d, %d, %d, %d, %d]\r\n",p_int16s,
+    		p_int16s[0], p_int16s[1], p_int16s[2], p_int16s[3], p_int16s[4], p_int16s[5], p_int16s[6], p_int16s[7]);
+	p_int16s=(int16_t*)g_i2s_buffer0;
+    log_printf(&g_log, "B0\t[%8X] <= [%d, %d, %d, %d, %d, %d, %d, %d]\r\n",p_int16s,
+    		p_int16s[0], p_int16s[1], p_int16s[2], p_int16s[3], p_int16s[4], p_int16s[5], p_int16s[6], p_int16s[7]);
+	p_int16s=(int16_t*)g_i2s_buffer1;
+    log_printf(&g_log, "B1\t[%8X] <= [%d, %d, %d, %d, %d, %d, %d, %d]\r\n",p_int16s,
+    		p_int16s[0], p_int16s[1], p_int16s[2], p_int16s[3], p_int16s[4], p_int16s[5], p_int16s[6], p_int16s[7]);
+
+    // end debug block
+
+    if( reading_complete ){
+    	printf("DMA Receive completed %lu int16s read out of %lu requested\r\n", g_int16s_read, g_i2s_wav_len);
+    	print_vals_int16(g_wav_record, g_int16s_read);
+    	g_i2s_rx_in_progess = 0;
+    }
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
 }
 
@@ -239,20 +271,21 @@ int main(void)
   /* USER CODE BEGIN 1 */
 
   // set up variables for I2S receiving
-
+  g_i2s_buffer0 = malloc(g_i2s_chunk_size_bytes);
+  g_i2s_buffer1 = malloc(g_i2s_chunk_size_bytes);
+  g_i2s_current_buff = g_i2s_buffer0;
+  g_wav_record = (int16_t *)malloc(g_i2s_wav_len * sizeof(int16_t));
 
   // And for UART (over USB) connection to host
   uint8_t *uart_buff;
   uint32_t uart_timeout_ms = 200;
   uint32_t uart_status;
 
-  g_i2s_buffer0 = malloc(g_i2s_chunk_size_bytes);
+
+  // These memset()s are probably not needed, since we do it before starting to record
   memset(g_i2s_buffer0, 0xFF, g_i2s_chunk_size_bytes);
-  g_i2s_buffer1 = malloc(g_i2s_chunk_size_bytes);
   memset(g_i2s_buffer1, 0xFF, g_i2s_chunk_size_bytes);
-  g_i2s_current_buff = g_i2s_buffer0;
-  g_wav_record = (int16_t *)malloc(g_i2s_wav_len * sizeof(int16_t));
-  memset(g_wav_record, 0xFF, g_i2s_wav_len);
+  memset(g_wav_record, 0xFF, g_i2s_wav_len*2);
 
   uart_buff = malloc(64);
   memset(uart_buff, 0x00, 64);
@@ -296,12 +329,22 @@ int main(void)
 	  uart_status = HAL_UART_Receive(&hlpuart1, uart_buff, 1, uart_timeout_ms);
 	  if(uart_status == HAL_OK) {  // otherwise timeout => no key input
 		 if( uart_buff[0] == 'r') { // read from I2S
-			 g_int16s_read = 0;
-			 printf("Listening for I2S data ... \r\n");
-			 g_i2s_status = HAL_SAI_Receive_DMA(&hsai_BlockA1, g_i2s_current_buff, g_i2s_chunk_size_bytes);
-			 // you can also check hsai->State
-			 printf("DMA receive initiated. status=%lu\r\n", g_i2s_status);
-			 printf("    0=OK, 1=Error, 2=Busy, 3=Timeout\r\n");
+			 if( 0 && g_i2s_rx_in_progess ) {
+				 printf("I2S Rx currently in progress. Ignoring request\r\n");
+			 }
+			 else {
+				 g_i2s_rx_in_progess = 1;
+				 g_int16s_read = 0;
+				 printf("Listening for I2S data ... \r\n");
+				 memset(g_wav_record, 0xFF, g_i2s_wav_len*2); // *2 b/c wav_len is int16s
+				 memset(g_i2s_buffer0, 0x55, g_i2s_chunk_size_bytes);
+				 memset(g_i2s_buffer1, 0x55, g_i2s_chunk_size_bytes);
+
+				 g_i2s_status = HAL_SAI_Receive_DMA(&hsai_BlockA1, g_i2s_current_buff, g_i2s_chunk_size_bytes);
+				 // you can also check hsai->State
+				 printf("DMA receive initiated. status=%lu\r\n", g_i2s_status);
+				 printf("    0=OK, 1=Error, 2=Busy, 3=Timeout\r\n");
+			 }
 		 }
 		 else if( uart_buff[0] == 's') { // Print SAI status and toggle pin
 			 HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
@@ -319,24 +362,27 @@ int main(void)
 			 HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
 		 }
 		 else if( uart_buff[0] == 'l') { // print and reset log
-			 printf("Log contents[cp=%u]:\r\n%s", g_log.current_pos, g_log.buffer);
+			 printf("Log contents[cp=%u]:\r\n<%s>\r\n", g_log.current_pos, g_log.buffer);
 			 memset(g_log.buffer, 0, LOG_BUFFER_SIZE);
 			 g_log.current_pos = 0;
 		 }
-		 else if( uart_buff[0] == '0') { // print and reset log
+		 else if( uart_buff[0] == '0') { // print buffer 0
 			 printf("Buffer 0: \r\n");
-			 // print_vals_int16((int16_t *)g_i2s_buffer0, g_i2s_chunk_size_bytes/2);
-			 print_bytes(g_i2s_buffer0, g_i2s_chunk_size_bytes);
+			 print_vals_int16((int16_t *)g_i2s_buffer0, g_i2s_chunk_size_bytes/2);
+			 // print_bytes(g_i2s_buffer0, g_i2s_chunk_size_bytes);
 		 }
-		 else if( uart_buff[0] == '1') { // print and reset log
+		 else if( uart_buff[0] == '1') { // print buffer 1
 			 printf("Buffer 1: \r\n");
-			 // print_vals_int16((int16_t *)g_i2s_buffer1, g_i2s_chunk_size_bytes/2);
-			 print_bytes(g_i2s_buffer1, g_i2s_chunk_size_bytes);
+			 print_vals_int16((int16_t *)g_i2s_buffer1, g_i2s_chunk_size_bytes/2);
+			 // print_bytes(g_i2s_buffer1, g_i2s_chunk_size_bytes);
 		 }
-		 else if( uart_buff[0] == 'w') { // print and reset log
-			 printf("Wav record as bytes: \r\n");
-			 // print_vals_int16((int16_t *)g_i2s_buffer1, g_i2s_chunk_size_bytes/2);
-			 print_bytes((uint8_t *)g_wav_record, g_int16s_read*2);
+		 else if( uart_buff[0] == 'w') { // print wav_record as bytes
+			 printf("Wav record as ints: \r\n");
+			 print_vals_int16(g_wav_record, g_i2s_chunk_size_bytes/2);
+			 // print_bytes((uint8_t *)g_wav_record, g_int16s_read*2);
+		 }
+		 else if( uart_buff[0] == 'b') { // print wav_record as bytes
+			 printf("Set a breakpoint here if you want: \r\n");
 		 }
 		 else {
 			 printf("Unexpected character: %c\r\n", uart_buff[0]);
