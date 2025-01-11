@@ -16,8 +16,18 @@ On the runner board (STM32H573I-DK)
 DUT board pinout taken from STM document "um2179-stm32-nucleo144-boards-mb1312-stmicroelectronics.pdf".
 <img src="figures/ref_board_l4_pinout.png" width="600">
 
+### Running the model
+
+* To include X-Cube-AI in the project, I followed the instructions [here](https://community.st.com/t5/stm32-mcus/how-to-install-x-cube-ai-through-stm32cubemx/ta-p/585776) and [here](https://www.st.com/resource/en/user_manual/dm00570145-getting-started-with-x-cube-ai-expansion-package-for-artificial-intelligence-ai-stmicroelectronics.pdf).
+    * The X-Cube-AI getting started guide states a run-time efficiency of: STM32 Arm® Cortex®-M4/M33: ~9 cycles/MACC, STM32 Arm® Cortex®-M7:- ~6 cycles/MACC.
+
+* Running the analyzer on the tflite model with no compression and balanced optimization gives the following information: 652,551 MACCs, 55.95 KiB flash, 10.41 KiB RAM.
+
+
 ### Notes from the Driver Source
-This information is in teh header of `stm32l4xx_hal_sai.c`.
+
+This information is in the header of `stm32l4xx_hal_sai.c`.
+
 ```
     The SAI HAL driver can be used as follows:
 

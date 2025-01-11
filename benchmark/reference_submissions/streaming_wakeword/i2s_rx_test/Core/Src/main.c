@@ -69,7 +69,7 @@ uint8_t *g_i2s_buffer1 = NULL;
 uint8_t *g_i2s_current_buff = NULL; // will be either g_i2s_buffer0 or g_i2s_buffer1
 int g_i2s_buff_sel = 0;  // 0 for buffer0, 1 for buffer1
 int16_t *g_wav_record = NULL;  // buffer to store complete waveform
-uint32_t g_i2s_wav_len = 1*512; // length in (16b) samples
+uint32_t g_i2s_wav_len = 2*512; // length in (16b) samples
 int g_i2s_rx_in_progess = 0;
 LogBuffer g_log = { .buffer = {0}, .current_pos = 0 };
 
@@ -329,7 +329,7 @@ int main(void)
 	  uart_status = HAL_UART_Receive(&hlpuart1, uart_buff, 1, uart_timeout_ms);
 	  if(uart_status == HAL_OK) {  // otherwise timeout => no key input
 		 if( uart_buff[0] == 'r') { // read from I2S
-			 if( 0 && g_i2s_rx_in_progess ) {
+			 if(0 && g_i2s_rx_in_progess ) {
 				 printf("I2S Rx currently in progress. Ignoring request\r\n");
 			 }
 			 else {
@@ -342,15 +342,15 @@ int main(void)
 
 				 g_i2s_status = HAL_SAI_Receive_DMA(&hsai_BlockA1, g_i2s_current_buff, g_i2s_chunk_size_bytes);
 				 // you can also check hsai->State
-				 printf("DMA receive initiated. status=%lu\r\n", g_i2s_status);
-				 printf("    0=OK, 1=Error, 2=Busy, 3=Timeout\r\n");
+				 printf("DMA receive initiated. status=%lu, state=%d\r\n", g_i2s_status, hsai_BlockA1.State);
+				 printf("    Status: 0=OK, 1=Error, 2=Busy, 3=Timeout; State: 0=Reset, 1=Ready, 2=Busy (internal process), 18=Busy (Tx), 34=Busy (Rx)\r\n");
 			 }
 		 }
 		 else if( uart_buff[0] == 's') { // Print SAI status and toggle pin
 			 HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
-			 printf("I2S Status = %lu. SAI Status = %d, Xfer count=%d, Xfer size=%d, %lu samples read, buffer <%d> active\r\n",
+			 printf("I2S Status = %lu. SAI Status = %d, Xfer count=%d, Xfer size=%d, %lu samples read, buffer <%d> active, RX in progress: %d\r\n",
 					 g_i2s_status, hsai_BlockA1.State, hsai_BlockA1.XferCount, hsai_BlockA1.XferSize,
-					 g_int16s_read, g_i2s_buff_sel);
+					 g_int16s_read, g_i2s_buff_sel, g_i2s_rx_in_progess);
 
 			 // hsai_BlockA1.State: 0=Reset, 1=Ready, 2=Busy (internal process), 18=Busy (Tx), 34=Busy (Rx)
 
