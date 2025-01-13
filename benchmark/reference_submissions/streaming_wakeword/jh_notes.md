@@ -18,7 +18,9 @@ DUT board pinout taken from STM document "um2179-stm32-nucleo144-boards-mb1312-s
 
 * Integrating CMSIS-DSP, see info [here](https://community.st.com/t5/stm32-mcus/configuring-dsp-libraries-on-stm32cubeide/ta-p/49637).
     * Currently running V1.6.0 of CMSIS-DSP
-    * 
+    * Include paths, etc are stored in the file `<project_name>/.cproject.`
+
+    
 ### Running the model
 
 * To include X-Cube-AI in the project, I followed the instructions [here](https://community.st.com/t5/stm32-mcus/how-to-install-x-cube-ai-through-stm32cubemx/ta-p/585776) and [here](https://www.st.com/resource/en/user_manual/dm00570145-getting-started-with-x-cube-ai-expansion-package-for-artificial-intelligence-ai-stmicroelectronics.pdf).
