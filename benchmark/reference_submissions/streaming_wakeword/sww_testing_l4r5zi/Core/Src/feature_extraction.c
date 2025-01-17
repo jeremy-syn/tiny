@@ -50,6 +50,7 @@
 #include "arm_math.h"
 #include "arm_const_structs.h"
 #include "model_test_inputs.h"
+#include "sww_util.h"
 #include <stdio.h>
 
 
@@ -62,34 +63,38 @@
 static float32_t testOutput[TEST_LENGTH_SAMPLES/2];
 
 
-void test_extraction(void)
+void test_extraction(const float32_t input_signal[])
 {
   float32_t maxValue;
   float32_t fftbuff[TEST_LENGTH_SAMPLES];
-  uint32_t refIndex = 213, testIndex = 0;
+  uint32_t testIndex = 0;
 
   uint32_t fftSize = 1024;
   uint32_t ifftFlag = 0;
   uint32_t doBitReverse = 1;
-  arm_cfft_instance_f32 varInstCfftF32;
 
 
   for(int i=0;i<TEST_LENGTH_SAMPLES;i++){
-	  fftbuff[i] = sine_fs16k_7992[i];
+	  fftbuff[i] = input_signal[i];
   }
 
   /* Process the data through the CFFT/CIFFT module */
-  printf("Before FFT: %3.4f, %3.4f, %3.4f, %3.4f\r\n", fftbuff[0], fftbuff[1], fftbuff[2], fftbuff[3]);
+  printf("Before FFT: %3.4f, %3.4f, %3.4f, %3.4f\r\n",
+		  fftbuff[0], fftbuff[1], fftbuff[2], fftbuff[3]);
   arm_cfft_f32(&arm_cfft_sR_f32_len1024, fftbuff, ifftFlag, doBitReverse);
 
-  printf("After FFT: %3.4f, %3.4f, %3.4f, %3.4f\r\n", fftbuff[0], fftbuff[1], fftbuff[2], fftbuff[3]);
+  printf("After FFT: %3.4f, %3.4f, %3.4f, %3.4f, %3.4f, %3.4f, %3.4f, %3.4f\r\n",
+		  fftbuff[0], fftbuff[1], fftbuff[2], fftbuff[3],
+		  fftbuff[4], fftbuff[5], fftbuff[6], fftbuff[7]);
 
   /* Process the data through the Complex Magnitude Module for
   calculating the magnitude at each bin */
   arm_cmplx_mag_f32(fftbuff, testOutput, fftSize);
 
-  printf("After Mag: %3.4f, %3.4f, %3.4f, %3.4f\r\n", fftbuff[0], fftbuff[1], fftbuff[2], fftbuff[3]);
-
+//  printf("Mag: %3.4f, %3.4f, %3.4f, %3.4f\r\n",
+//		  testOutput[0], testOutput[1], testOutput[2], testOutput[3]);
+  printf("Magnitude output\r\n");
+  print_vals_float(testOutput, TEST_LENGTH_SAMPLES/2);
 
   /* Calculates maxValue and returns corresponding BIN value */
   arm_max_f32(testOutput, fftSize, &maxValue, &testIndex);
