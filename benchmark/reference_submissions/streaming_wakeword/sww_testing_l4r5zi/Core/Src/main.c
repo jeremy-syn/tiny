@@ -31,11 +31,13 @@
 #include "sww_model_data.h"
 #include "feature_extraction.h"
 #include "model_test_inputs.h"
+#include "sww_util.h"
 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+
 
 /* USER CODE END PTD */
 
@@ -109,43 +111,7 @@ PUTCHAR_PROTOTYPE
 //    return len;
 //}
 
-void print_vals_int16(int16_t *buffer, uint32_t num_vals)
-{
-	const int vals_per_line = 16;
-	printf("[");
-	for(uint32_t i=0;i<num_vals;i+= vals_per_line)
-	{
-		for(int j=0;j<vals_per_line;j++)
-		{
-			if(i+j >= num_vals)
-			{
-				break;
-			}
-			printf("%d, ", buffer[i+j]);
-		}
-		printf("\r\n");
-	}
-	printf("]\r\n==== Done ====\r\n");
-}
 
-void print_bytes(uint8_t *buffer, uint32_t num_bytes)
-{
-	const int vals_per_line = 16;
-	printf("[");
-	for(uint32_t i=0;i<num_bytes;i+= vals_per_line)
-	{
-		for(int j=0;j<vals_per_line;j++)
-		{
-			if(i+j >= num_bytes)
-			{
-				break;
-			}
-			printf("0x%X, ", buffer[i+j]);
-		}
-		printf("\r\n");
-	}
-	printf("]\r\n==== Done ====\r\n");
-}
 
 /*
  * Bootstrap
@@ -198,7 +164,9 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+  // And for UART (over USB) connection to host
+  uint32_t uart_timeout_ms = 200;
+  uint32_t uart_status;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -229,12 +197,18 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   aiInit();
+  char ch_from_uart= (char) 0;
+
   while (1)
   {
+	  uart_status = HAL_UART_Receive(&hlpuart1, (uint8_t *)&ch_from_uart, 1, uart_timeout_ms);
+	  if(uart_status == HAL_OK) {// otherwise timeout => no key input
+		  ee_serial_callback(ch_from_uart);
+	  }
+
 	/* 1 - Acquire, pre-process and fill the input buffers */
 	//	acquire_and_process_data(in_data);
-	printf("In while loop. about to run model\r\n");
-
+//	printf("In while loop. about to run model\r\n");
 //	for(int i=0;i<AI_SWW_MODEL_IN_1_SIZE;i++){
 //		in_data[i] = (ai_i8)test_input_class2[i];
 //	}
@@ -246,11 +220,17 @@ int main(void)
 //	}
 //	printf("]\r\n");
 //
-	test_extraction();
+
+	// Feature extraction work
+//	printf("About to run FFT on 7992 Hz signal.\r\n");
+//	test_extraction(sine_fs16k_7992);
+//	printf("About to run FFT on 200 Hz signal.\r\n");
+//	test_extraction(sine_fs16k_200);
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	HAL_Delay(500);
+	  //	HAL_Delay(500);
 
   }
   /* USER CODE END 3 */
