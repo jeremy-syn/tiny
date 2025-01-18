@@ -69,10 +69,11 @@ uint8_t *g_i2s_buffer1 = NULL;
 uint8_t *g_i2s_current_buff = NULL; // will be either g_i2s_buffer0 or g_i2s_buffer1
 int g_i2s_buff_sel = 0;  // 0 for buffer0, 1 for buffer1
 int16_t *g_wav_record = NULL;  // buffer to store complete waveform
-uint32_t g_i2s_wav_len = 2*512; // length in (16b) samples
+uint32_t g_i2s_wav_len = 32*512; // length in (16b) samples
 int g_i2s_rx_in_progess = 0;
 LogBuffer g_log = { .buffer = {0}, .current_pos = 0 };
 
+int num_calls=0;
 
 /* USER CODE END PV */
 
@@ -104,7 +105,7 @@ PUTCHAR_PROTOTYPE
   return ch;
 }
 
-void print_vals_int16(int16_t *buffer, uint32_t num_vals)
+void print_vals_int16(const int16_t *buffer, uint32_t num_vals)
 {
 	const int vals_per_line = 16;
 	printf("[");
@@ -123,7 +124,7 @@ void print_vals_int16(int16_t *buffer, uint32_t num_vals)
 	printf("]\r\n==== Done ====\r\n");
 }
 
-void print_bytes(uint8_t *buffer, uint32_t num_bytes)
+void print_bytes(const uint8_t *buffer, uint32_t num_bytes)
 {
 	const int vals_per_line = 16;
 	printf("[");
@@ -178,7 +179,10 @@ void ErrorHandler(HAL_StatusTypeDef returned_status) {
 
 void HAL_SAI_RxCpltCallback(SAI_HandleTypeDef *hsai) {
 
+	log_printf(&g_log, "<beg>w0=%d\r\n", g_wav_record[0]);
 	int reading_complete=0;
+
+	num_calls += 1;
 
 	g_int16s_read += g_i2s_chunk_size_bytes/2;
 
@@ -189,7 +193,7 @@ void HAL_SAI_RxCpltCallback(SAI_HandleTypeDef *hsai) {
 
 	if(g_int16s_read + g_i2s_chunk_size_bytes/2 <= g_i2s_wav_len){
 		// there is space left for a full chunk
-		g_i2s_status = HAL_SAI_Receive_DMA(hsai, g_i2s_current_buff, g_i2s_chunk_size_bytes);
+		g_i2s_status = HAL_SAI_Receive_DMA(hsai, g_i2s_current_buff, g_i2s_chunk_size_bytes/2);
 	}
 	else {
 		// if there is only space for a partial read
@@ -207,16 +211,25 @@ void HAL_SAI_RxCpltCallback(SAI_HandleTypeDef *hsai) {
 
 	// This block just for debug.
 	//	uint8_t *p_bytes=NULL;
-	int16_t *p_int16s=(int16_t*)(g_wav_record+g_int16s_read - g_i2s_chunk_size_bytes/2);
+
 	//    p_bytes = (uint8_t*)(g_wav_record+g_int16s_read);
+	log_printf(&g_log, "%d calls to RxCb\r\n", num_calls);
     log_printf(&g_log, "cb:%lu,b%d,rs=%d,st=%d.\r\n", g_int16s_read, g_i2s_buff_sel, g_i2s_status, hsai->State);
     //  log_printf(&g_log, "\t[%8X] [0x%02X, 0x%02X, 0x%02X, 0x%02X]\r\n",p_bytes, p_bytes[0], p_bytes[1], p_bytes[2], p_bytes[3]);
+
+	int16_t *p_int16s=(int16_t*)(g_wav_record);
+    log_printf(&g_log, "W0:\t[%8X] <= [%d, %d, %d, %d, %d, %d, %d, %d]\r\n",p_int16s,
+        		p_int16s[0], p_int16s[1], p_int16s[2], p_int16s[3], p_int16s[4], p_int16s[5], p_int16s[6], p_int16s[7]);
+
+    p_int16s=(int16_t*)(g_wav_record+g_int16s_read - g_i2s_chunk_size_bytes/2);
     log_printf(&g_log, "WV:\t[%8X] <= [%d, %d, %d, %d, %d, %d, %d, %d]\r\n",p_int16s,
     		p_int16s[0], p_int16s[1], p_int16s[2], p_int16s[3], p_int16s[4], p_int16s[5], p_int16s[6], p_int16s[7]);
-	p_int16s=(int16_t*)g_i2s_buffer0;
+
+    p_int16s=(int16_t*)g_i2s_buffer0;
     log_printf(&g_log, "B0\t[%8X] <= [%d, %d, %d, %d, %d, %d, %d, %d]\r\n",p_int16s,
     		p_int16s[0], p_int16s[1], p_int16s[2], p_int16s[3], p_int16s[4], p_int16s[5], p_int16s[6], p_int16s[7]);
-	p_int16s=(int16_t*)g_i2s_buffer1;
+
+    p_int16s=(int16_t*)g_i2s_buffer1;
     log_printf(&g_log, "B1\t[%8X] <= [%d, %d, %d, %d, %d, %d, %d, %d]\r\n",p_int16s,
     		p_int16s[0], p_int16s[1], p_int16s[2], p_int16s[3], p_int16s[4], p_int16s[5], p_int16s[6], p_int16s[7]);
 
@@ -228,6 +241,7 @@ void HAL_SAI_RxCpltCallback(SAI_HandleTypeDef *hsai) {
     	g_i2s_rx_in_progess = 0;
     }
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
+    log_printf(&g_log, "<end>w0=%d\r\n", g_wav_record[0]);
 }
 
 uint32_t receive_i2s_blocking(uint8_t *buff_ptr, uint32_t max_chars)
@@ -340,7 +354,7 @@ int main(void)
 				 memset(g_i2s_buffer0, 0x55, g_i2s_chunk_size_bytes);
 				 memset(g_i2s_buffer1, 0x55, g_i2s_chunk_size_bytes);
 
-				 g_i2s_status = HAL_SAI_Receive_DMA(&hsai_BlockA1, g_i2s_current_buff, g_i2s_chunk_size_bytes);
+				 g_i2s_status = HAL_SAI_Receive_DMA(&hsai_BlockA1, g_i2s_current_buff, g_i2s_chunk_size_bytes/2);
 				 // you can also check hsai->State
 				 printf("DMA receive initiated. status=%lu, state=%d\r\n", g_i2s_status, hsai_BlockA1.State);
 				 printf("    Status: 0=OK, 1=Error, 2=Busy, 3=Timeout; State: 0=Reset, 1=Ready, 2=Busy (internal process), 18=Busy (Tx), 34=Busy (Rx)\r\n");
@@ -371,7 +385,7 @@ int main(void)
 			 print_vals_int16((int16_t *)g_i2s_buffer0, g_i2s_chunk_size_bytes/2);
 			 // print_bytes(g_i2s_buffer0, g_i2s_chunk_size_bytes);
 		 }
-		 else if( uart_buff[0] == '1') { // print buffer 1
+		 else if( uart_buff[0] == '1') { // print buffer 1b
 			 printf("Buffer 1: \r\n");
 			 print_vals_int16((int16_t *)g_i2s_buffer1, g_i2s_chunk_size_bytes/2);
 			 // print_bytes(g_i2s_buffer1, g_i2s_chunk_size_bytes);
