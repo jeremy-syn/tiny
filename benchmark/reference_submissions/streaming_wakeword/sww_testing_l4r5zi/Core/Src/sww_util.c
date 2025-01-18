@@ -12,7 +12,7 @@
 #include <stdint.h>
 #include "sww_util.h"
 
-
+#define  MAX_CMD_TOKENS 8 // maximum number of tokens in a command, including the command and arguments
 // Command buffer (incoming commands from host)
 char g_cmd_buf[EE_CMD_SIZE + 1];
 size_t g_cmd_pos = 0u;
@@ -125,18 +125,45 @@ void ee_serial_callback(char c) {
 
 
 void process_command(char *full_command) {
-	char* cmd_name = strtok(full_command, EE_CMD_DELIMITER);
-	// if g_cmd_buf is "<command> <arg1> <arg2>" (command and args delimited by spaces)
-	// then we extract the command and leave everything else in g_cmd_buf
-	if (strcmp(cmd_name, "name") == 0) {
+
+	char *cmd_args[MAX_CMD_TOKENS] = {NULL};
+
+    printf("Full command: %s\r\n", full_command);
+
+    char* token = strtok(full_command, " ");
+    cmd_args[0] = token;
+
+    for(int i=1;i<MAX_CMD_TOKENS;i++) {
+        cmd_args[i] = strtok(NULL, " ");
+        if(cmd_args[i] == NULL)
+            break;
+    }
+    for(int i=0;i<MAX_CMD_TOKENS && cmd_args[i] != NULL;i++) {
+        printf("[%d]: %p=>%s\r\n", i, (void *)cmd_args[i], cmd_args[i]);
+    }
+
+	// full_command should be "<command> <arg1> <arg2>" (command and args delimited by spaces)
+	// put the command and arguments into the array cmd_arg[]
+	if (strcmp(cmd_args[0], "name") == 0) {
 		printf("streaming wakeword test platform\r\n");
 	}
 	// else if() {}
 	else {
-		printf("Unrecognized command %s, with arguments %s\r\n", cmd_name, full_command);
+		printf("Unrecognized command %s, with arguments %s\r\n", cmd_args[0], full_command);
 	}
-
-
 }
 
-
+//void run_model(char *cmd_args[]) {
+////	acquire_and_process_data(in_data);
+//	printf("In while loop. about to run model\r\n");
+//	for(int i=0;i<AI_SWW_MODEL_IN_1_SIZE;i++){
+//		in_data[i] = (ai_i8)test_input_class2[i];
+//	}
+//	/* 2 - Call inference engine */
+//	aiRun(in_data, out_data);
+//	printf("Output = [");
+//	for(int i=0;i<AI_SWW_MODEL_OUT_1_SIZE;i++){
+//		printf("%02d, ", out_data[i]);
+//	}
+//	printf("]\r\n");
+//}

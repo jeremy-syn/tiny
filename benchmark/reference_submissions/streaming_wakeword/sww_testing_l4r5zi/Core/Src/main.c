@@ -206,20 +206,6 @@ int main(void)
 		  ee_serial_callback(ch_from_uart);
 	  }
 
-	/* 1 - Acquire, pre-process and fill the input buffers */
-	//	acquire_and_process_data(in_data);
-//	printf("In while loop. about to run model\r\n");
-//	for(int i=0;i<AI_SWW_MODEL_IN_1_SIZE;i++){
-//		in_data[i] = (ai_i8)test_input_class2[i];
-//	}
-//	/* 2 - Call inference engine */
-//	aiRun(in_data, out_data);
-//	printf("Output = [");
-//	for(int i=0;i<AI_SWW_MODEL_OUT_1_SIZE;i++){
-//		printf("%02d, ", out_data[i]);
-//	}
-//	printf("]\r\n");
-//
 
 	// Feature extraction work
 //	printf("About to run FFT on 7992 Hz signal.\r\n");
