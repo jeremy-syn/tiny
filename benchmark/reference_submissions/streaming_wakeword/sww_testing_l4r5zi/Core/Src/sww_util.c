@@ -12,6 +12,12 @@
 #include <stdint.h>
 #include "sww_util.h"
 
+// needed for running the model and/or initializing inference setup
+#include "sww_model.h"
+#include "sww_model_data.h"
+#include "model_test_inputs.h"
+
+
 #define  MAX_CMD_TOKENS 8 // maximum number of tokens in a command, including the command and arguments
 // Command buffer (incoming commands from host)
 char g_cmd_buf[EE_CMD_SIZE + 1];
@@ -147,23 +153,109 @@ void process_command(char *full_command) {
 	if (strcmp(cmd_args[0], "name") == 0) {
 		printf("streaming wakeword test platform\r\n");
 	}
-	// else if() {}
+	else if(strcmp(cmd_args[0], "run_model") == 0) {
+		run_model(cmd_args);
+	}
 	else {
 		printf("Unrecognized command %s, with arguments %s\r\n", cmd_args[0], full_command);
 	}
 }
 
-//void run_model(char *cmd_args[]) {
-////	acquire_and_process_data(in_data);
-//	printf("In while loop. about to run model\r\n");
-//	for(int i=0;i<AI_SWW_MODEL_IN_1_SIZE;i++){
-//		in_data[i] = (ai_i8)test_input_class2[i];
-//	}
-//	/* 2 - Call inference engine */
-//	aiRun(in_data, out_data);
-//	printf("Output = [");
-//	for(int i=0;i<AI_SWW_MODEL_OUT_1_SIZE;i++){
-//		printf("%02d, ", out_data[i]);
-//	}
-//	printf("]\r\n");
-//}
+
+/* Global handle to reference the instantiated C-model */
+static ai_handle sww_model = AI_HANDLE_NULL;
+
+/* Global c-array to handle the activations buffer */
+AI_ALIGNED(32)
+static ai_i8 activations[AI_SWW_MODEL_DATA_ACTIVATIONS_SIZE];
+
+/* Array to store the data of the input tensor */
+AI_ALIGNED(32)
+static ai_i8 in_data[AI_SWW_MODEL_IN_1_SIZE];
+/* or static ai_i8 in_data[AI_SWW_MODEL_DATA_IN_1_SIZE_BYTES]; */
+
+/* c-array to store the data of the output tensor */
+AI_ALIGNED(32)
+static ai_i8 out_data[AI_SWW_MODEL_OUT_1_SIZE];
+/* static ai_i8 out_data[AI_SWW_MODEL_DATA_OUT_1_SIZE_BYTES]; */
+
+/* Array of pointer to manage the model's input/output tensors */
+static ai_buffer *ai_input;
+static ai_buffer *ai_output;
+
+
+/*
+ * Bootstrap inference framework
+ */
+int aiInit(void) {
+  ai_error err;
+
+  /* Create and initialize the c-model */
+  const ai_handle acts[] = { activations };
+  err = ai_sww_model_create_and_init(&sww_model, acts, NULL);
+
+  if (err.type != AI_ERROR_NONE) {
+	  ;
+  };
+
+  /* Reteive pointers to the model's input/output tensors */
+  ai_input = ai_sww_model_inputs_get(sww_model, NULL);
+  ai_output = ai_sww_model_outputs_get(sww_model, NULL);
+
+  return 0;
+}
+
+
+
+/*
+ * Run inference
+ */
+int aiRun(const void *in_data, void *out_data) {
+  ai_i32 n_batch;
+  ai_error err;
+
+  /* 1 - Update IO handlers with the data payload */
+  ai_input[0].data = AI_HANDLE_PTR(in_data);
+  ai_output[0].data = AI_HANDLE_PTR(out_data);
+
+  /* 2 - Perform the inference */
+  n_batch = ai_sww_model_run(sww_model, &ai_input[0], &ai_output[0]);
+  if (n_batch != 1) {
+      err = ai_sww_model_get_error(sww_model);
+
+  };
+
+  return 0;
+}
+
+void run_model(char *cmd_args[]) {
+//	acquire_and_process_data(in_data);
+	const int8_t *input_source=NULL;
+
+	printf("In run_model. about to run model\r\n");
+	if (strcmp(cmd_args[1], "class0") == 0) {
+		input_source = test_input_class0;
+	}
+	else if (strcmp(cmd_args[1], "class1") == 0) {
+		input_source = test_input_class1;
+	}
+	else if (strcmp(cmd_args[1], "class2") == 0) {
+		input_source = test_input_class2;
+	}
+	else {
+		printf("Unknown input tensor name, defaulting to test_input_class0\r\n");
+		input_source = test_input_class0;
+	}
+
+
+	for(int i=0;i<AI_SWW_MODEL_IN_1_SIZE;i++){
+		in_data[i] = (ai_i8)input_source[i];
+	}
+	/*  Call inference engine */
+	aiRun(in_data, out_data);
+	printf("Output = [");
+	for(int i=0;i<AI_SWW_MODEL_OUT_1_SIZE;i++){
+		printf("%02d, ", out_data[i]);
+	}
+	printf("]\r\n");
+}

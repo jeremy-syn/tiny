@@ -27,10 +27,12 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+// needed for running the model and/or initializing inference setup
 #include "sww_model.h"
 #include "sww_model_data.h"
-#include "feature_extraction.h"
 #include "model_test_inputs.h"
+
+#include "feature_extraction.h"
 #include "sww_util.h"
 
 /* USER CODE END Includes */
@@ -58,26 +60,7 @@ UART_HandleTypeDef huart3;
 PCD_HandleTypeDef hpcd_USB_OTG_FS;
 
 /* USER CODE BEGIN PV */
-/* Global handle to reference the instantiated C-model */
-static ai_handle sww_model = AI_HANDLE_NULL;
 
-/* Global c-array to handle the activations buffer */
-AI_ALIGNED(32)
-static ai_i8 activations[AI_SWW_MODEL_DATA_ACTIVATIONS_SIZE];
-
-/* Array to store the data of the input tensor */
-AI_ALIGNED(32)
-static ai_i8 in_data[AI_SWW_MODEL_IN_1_SIZE];
-/* or static ai_i8 in_data[AI_SWW_MODEL_DATA_IN_1_SIZE_BYTES]; */
-
-/* c-array to store the data of the output tensor */
-AI_ALIGNED(32)
-static ai_i8 out_data[AI_SWW_MODEL_OUT_1_SIZE];
-/* static ai_i8 out_data[AI_SWW_MODEL_DATA_OUT_1_SIZE_BYTES]; */
-
-/* Array of pointer to manage the model's input/output tensors */
-static ai_buffer *ai_input;
-static ai_buffer *ai_output;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -113,47 +96,6 @@ PUTCHAR_PROTOTYPE
 
 
 
-/*
- * Bootstrap
- */
-int aiInit(void) {
-  ai_error err;
-
-  /* Create and initialize the c-model */
-  const ai_handle acts[] = { activations };
-  err = ai_sww_model_create_and_init(&sww_model, acts, NULL);
-
-  if (err.type != AI_ERROR_NONE) {
-	  ;
-  };
-
-  /* Reteive pointers to the model's input/output tensors */
-  ai_input = ai_sww_model_inputs_get(sww_model, NULL);
-  ai_output = ai_sww_model_outputs_get(sww_model, NULL);
-
-  return 0;
-}
-
-/*
- * Run inference
- */
-int aiRun(const void *in_data, void *out_data) {
-  ai_i32 n_batch;
-  ai_error err;
-
-  /* 1 - Update IO handlers with the data payload */
-  ai_input[0].data = AI_HANDLE_PTR(in_data);
-  ai_output[0].data = AI_HANDLE_PTR(out_data);
-
-  /* 2 - Perform the inference */
-  n_batch = ai_sww_model_run(sww_model, &ai_input[0], &ai_output[0]);
-  if (n_batch != 1) {
-      err = ai_sww_model_get_error(sww_model);
-
-  };
-
-  return 0;
-}
 /* USER CODE END 0 */
 
 /**

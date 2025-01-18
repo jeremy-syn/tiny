@@ -35,5 +35,7 @@ void log_printf(LogBuffer *log, const char *format, ...);
 void process_command(char *full_command);
 void ee_serial_callback(char c);
 
+int aiInit(void);
+
 
 #endif /* INC_SWW_UTIL_H_ */
