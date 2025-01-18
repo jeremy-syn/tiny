@@ -32,7 +32,6 @@
 #include "sww_model_data.h"
 #include "model_test_inputs.h"
 
-#include "feature_extraction.h"
 #include "sww_util.h"
 
 /* USER CODE END Includes */
@@ -89,12 +88,6 @@ PUTCHAR_PROTOTYPE
   return ch;
 }
 
-//int _write(int file, char *ptr, int len) {
-//    HAL_UART_Transmit(&hlpuart1, (uint8_t *)ptr, len, HAL_MAX_DELAY);
-//    return len;
-//}
-
-
 
 /* USER CODE END 0 */
 
@@ -147,19 +140,9 @@ int main(void)
 	  if(uart_status == HAL_OK) {// otherwise timeout => no key input
 		  ee_serial_callback(ch_from_uart);
 	  }
-
-
-	// Feature extraction work
-//	printf("About to run FFT on 7992 Hz signal.\r\n");
-//	test_extraction(sine_fs16k_7992);
-//	printf("About to run FFT on 200 Hz signal.\r\n");
-//	test_extraction(sine_fs16k_200);
-
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  //	HAL_Delay(500);
-
   }
   /* USER CODE END 3 */
 }

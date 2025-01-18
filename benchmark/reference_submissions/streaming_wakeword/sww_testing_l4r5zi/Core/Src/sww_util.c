@@ -10,7 +10,9 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdint.h>
+
 #include "sww_util.h"
+#include "feature_extraction.h"
 
 // needed for running the model and/or initializing inference setup
 #include "sww_model.h"
@@ -130,36 +132,6 @@ void ee_serial_callback(char c) {
 }
 
 
-void process_command(char *full_command) {
-
-	char *cmd_args[MAX_CMD_TOKENS] = {NULL};
-
-    printf("Full command: %s\r\n", full_command);
-
-    char* token = strtok(full_command, " ");
-    cmd_args[0] = token;
-
-    for(int i=1;i<MAX_CMD_TOKENS;i++) {
-        cmd_args[i] = strtok(NULL, " ");
-        if(cmd_args[i] == NULL)
-            break;
-    }
-    for(int i=0;i<MAX_CMD_TOKENS && cmd_args[i] != NULL;i++) {
-        printf("[%d]: %p=>%s\r\n", i, (void *)cmd_args[i], cmd_args[i]);
-    }
-
-	// full_command should be "<command> <arg1> <arg2>" (command and args delimited by spaces)
-	// put the command and arguments into the array cmd_arg[]
-	if (strcmp(cmd_args[0], "name") == 0) {
-		printf("streaming wakeword test platform\r\n");
-	}
-	else if(strcmp(cmd_args[0], "run_model") == 0) {
-		run_model(cmd_args);
-	}
-	else {
-		printf("Unrecognized command %s, with arguments %s\r\n", cmd_args[0], full_command);
-	}
-}
 
 
 /* Global handle to reference the instantiated C-model */
@@ -246,8 +218,6 @@ void run_model(char *cmd_args[]) {
 		printf("Unknown input tensor name, defaulting to test_input_class0\r\n");
 		input_source = test_input_class0;
 	}
-
-
 	for(int i=0;i<AI_SWW_MODEL_IN_1_SIZE;i++){
 		in_data[i] = (ai_i8)input_source[i];
 	}
@@ -259,3 +229,48 @@ void run_model(char *cmd_args[]) {
 	}
 	printf("]\r\n");
 }
+
+
+void run_extraction(char *cmd_args[]) {
+
+	// Feature extraction work
+	printf("About to run FFT on 7992 Hz signal.\r\n");
+	test_extraction(sine_fs16k_7992);
+	printf("About to run FFT on 200 Hz signal.\r\n");
+	test_extraction(sine_fs16k_200);
+}
+
+void process_command(char *full_command) {
+
+	char *cmd_args[MAX_CMD_TOKENS] = {NULL};
+
+    printf("Full command: %s\r\n", full_command);
+
+    char* token = strtok(full_command, " ");
+    cmd_args[0] = token;
+
+    for(int i=1;i<MAX_CMD_TOKENS;i++) {
+        cmd_args[i] = strtok(NULL, " ");
+        if(cmd_args[i] == NULL)
+            break;
+    }
+    for(int i=0;i<MAX_CMD_TOKENS && cmd_args[i] != NULL;i++) {
+        printf("[%d]: %p=>%s\r\n", i, (void *)cmd_args[i], cmd_args[i]);
+    }
+
+	// full_command should be "<command> <arg1> <arg2>" (command and args delimited by spaces)
+	// put the command and arguments into the array cmd_arg[]
+	if (strcmp(cmd_args[0], "name") == 0) {
+		printf("streaming wakeword test platform\r\n");
+	}
+	else if(strcmp(cmd_args[0], "run_model") == 0) {
+		run_model(cmd_args);
+	}
+	else if(strcmp(cmd_args[0], "extract") == 0) {
+		run_extraction(cmd_args);
+	}
+	else {
+		printf("Unrecognized command %s, with arguments %s\r\n", cmd_args[0], full_command);
+	}
+}
+
