@@ -36,6 +36,7 @@ void process_command(char *full_command);
 void ee_serial_callback(char c);
 
 int aiInit(void);
+void setup_i2s_buffers();
 
 
 #endif /* INC_SWW_UTIL_H_ */
