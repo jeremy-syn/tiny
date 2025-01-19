@@ -288,6 +288,12 @@ void i2s_capture(char *cmd_args[]) {
 	}
 }
 
+void print_and_clear_log(char *cmd_args[]) {
+	printf("Log contents[cp=%u]:\r\n<%s>\r\n", g_log.current_pos, g_log.buffer);
+	memset(g_log.buffer, 0, LOG_BUFFER_SIZE);
+	g_log.current_pos = 0;
+}
+
 void process_command(char *full_command) {
 
 	char *cmd_args[MAX_CMD_TOKENS] = {NULL};
@@ -319,6 +325,9 @@ void process_command(char *full_command) {
 	}
 	else if(strcmp(cmd_args[0], "i2scap") == 0) {
 		i2s_capture(cmd_args);
+	}
+	else if(strcmp(cmd_args[0], "log") == 0) {
+		print_and_clear_log(cmd_args);
 	}
 	else {
 		printf("Unrecognized command %s, with arguments %s\r\n", cmd_args[0], full_command);
