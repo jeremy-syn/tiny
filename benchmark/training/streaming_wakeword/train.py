@@ -43,7 +43,7 @@ else:
   ds_train, ds_test, ds_val = str_ww_data.get_all_datasets(Flags)
 print("Done getting data")
 
-if Flags.model_init_path is None:
+if Flags.model_init_path is None: 
   print("Starting with untrained model")
   model = models.get_model(args=Flags, use_qat=False)
 else:
@@ -78,7 +78,13 @@ if float_epochs > 0:
 
 # get the final learning rate after fine tuning so we can start back at the same LR
 # This may not work/make sense with eg a cosine schedule on pre-training
-post_train_lr = model.optimizer.lr.numpy()
+if hasattr(model.optimizer.lr, 'numpy'):
+  post_train_lr = model.optimizer.lr.numpy()
+elif hasattr(model.optimizer.lr, '__call__'):
+  post_train_lr = model.optimizer.lr(model.optimizer.iterations).numpy()
+else:
+  print("Couldn't get learning rate from model.optimizer.lr. Will use the initial learning rate for QAT fine-tuning.")
+  post_train_lr = Flags.learning_rate
 print(f"After initial float training, LR = {post_train_lr}")
 
 # find rate such that over qat_epochs-10, LR decreases by 10x

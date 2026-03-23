@@ -367,7 +367,7 @@ def get_data_config(general_flags, split, cal_subset=False, wave_frame_input=Fal
     'background_frequency', 'num_background_clips',
     'sample_rate', 'clip_duration_ms',
     'window_size_ms', 'window_stride_ms',
-    'dct_coefficient_count',
+    'dct_coefficient_count', 'cache_dataset',
     'batch_size', 'num_classes', 'time_shift_ms'
     ]
   # First populate the values that apply to all splits.  These can be overwritten
@@ -627,6 +627,7 @@ def get_data(Flags, file_list, return_wavs=False):
     lambda d: {"audio":aug_func(d["audio"]), "label":d["label"]}, 
     num_parallel_calls=AUTOTUNE
     )
+
   # and extract spectral features
   if not return_wavs: # return_wavs => skip feature extraction. mostly for debugging.
     dset = dset.map(
@@ -641,7 +642,8 @@ def get_data(Flags, file_list, return_wavs=False):
 
   # The order of these next three steps is important: cache, then shuffle, then batch.
   # Cache at this point, so we don't have to repeat all the spectrogram calculations each epoch
-  dset = dset.cache()
+  if Flags.cache_dataset:
+    dset = dset.cache()
 
   if Flags.shuffle:
     # count the number of items in the training set.

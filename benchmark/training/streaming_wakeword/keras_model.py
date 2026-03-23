@@ -281,8 +281,18 @@ def get_model(args, use_qat=False):
   
   ########################################
 
-
-  optimizer = select_optimizer(args, args.learning_rate)
+  if args.lr_sched_name == "cosine":
+    # set lr_sched to cosine decay with warmup.
+    lr_sched = tf.keras.optimizers.schedules.CosineDecay(
+      initial_learning_rate=args.learning_rate,
+      # just for float training. use separate LR for QAT fine-tuning
+      decay_steps = (args.epochs * args.num_samples_training) // args.batch_size, 
+      alpha=1e-5, # final learning rate value as a fraction of the initial_learning_rate.
+    )
+  else:
+    # step-wise and reduce_on_plateau schedulers will be applied as callbacks during training
+    lr_sched = args.learning_rate
+  optimizer = select_optimizer(args, lr_sched)
 
   if use_qat:
     annotated_model = tfmot.quantization.keras.quantize_annotate_model(model)

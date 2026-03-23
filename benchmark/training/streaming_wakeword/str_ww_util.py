@@ -251,7 +251,15 @@ def add_dataset_args(parser):
         help="""\
         JSON file specifying model configuration parameters.  If None, default parameters are used.
         """)
-
+    parser.add_argument(
+        '--cache_dataset',
+        type=bool,
+        default=True,
+        help="""
+        Whether to cache the dataset after loading and pre-processing.  Caching 
+        will speed up training after the first epoch, but may hurt generalization 
+        and use more memory.
+        """)
 
     
 def add_training_args(parser):
@@ -316,7 +324,7 @@ def add_training_args(parser):
         default='reduce_on_plateau',
         help="""\
         lr schedule scheme name to be picked from lr.py.  Currently support either 
-        "reduce_on_plateau" or "step_function"
+        "reduce_on_plateau" or "step_function" or "cosine"
         """
         ) 
     parser.add_argument(
@@ -359,8 +367,6 @@ def add_eval_args(parser):
         Should specify an npz file with an element named 'specgram'.  E.g. `np.savez('test.npz', specgram=specgram)`
         Spectrogram should squeeze to shape (N, 40) and correspond to the detection windows specified in stream_config
         """)
-
-
 
 def add_quantize_args(parser):
     parser.add_argument(
