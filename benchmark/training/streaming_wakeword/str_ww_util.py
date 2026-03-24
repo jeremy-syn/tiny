@@ -253,13 +253,20 @@ def add_dataset_args(parser):
         """)
     parser.add_argument(
         '--cache_dataset',
-        type=bool,
-        default=True,
+        dest='cache_dataset',
+        action='store_true',
         help="""
         Whether to cache the dataset after loading and pre-processing.  Caching 
         will speed up training after the first epoch, but may hurt generalization 
         and use more memory.
         """)
+
+    parser.add_argument(
+        '--no_cache_dataset',
+        dest='cache_dataset',
+        action='store_false',
+        help="Disable dataset caching (opposite of --cache_dataset)")
+    parser.set_defaults(cache_dataset=False)
 
     
 def add_training_args(parser):
